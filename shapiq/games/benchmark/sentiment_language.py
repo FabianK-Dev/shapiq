@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from .base import Game
+from ..base import Game
 
 
 class SentimentClassificationGame(Game):
