@@ -18,6 +18,7 @@ from .regression import (
     RegressionFBII,
     RegressionFSII,
     kADDSHAP,
+    OddSHAP,
 )
 
 try:
@@ -82,6 +83,7 @@ SV_APPROXIMATORS: list[Approximator.__class__] = [
     SPEX,
     RegressionMSR,
     ProxySPEX,
+    OddSHAP,
 ]
 
 # contains all SI approximators
@@ -153,6 +155,7 @@ __all__ = [
     "ProxySPEX",
     "ProxySHAP",
     "RegressionMSR",
+    "OddSHAP",
     "SHAPIQ",
     "SVARM",
     "SVARMIQ",
