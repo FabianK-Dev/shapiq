@@ -15,10 +15,10 @@ from .regression import (
     InconsistentKernelSHAPIQ,
     KernelSHAP,
     KernelSHAPIQ,
+    OddSHAP,
     RegressionFBII,
     RegressionFSII,
     kADDSHAP,
-    OddSHAP,
 )
 
 try:
