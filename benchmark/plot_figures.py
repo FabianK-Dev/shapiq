@@ -49,8 +49,16 @@ METHOD_STYLE = {
 _EXACT_MSE_FLOOR = 1e-12
 
 
-def load_grid(csv_path: Path):
-    """Return {method: {budget: (mean_mse, mean_runtime)}}."""
+def load_grid(csv_path: Path, only_n: int | None = None):
+    """Return {method: {budget: (mean_mse, mean_runtime)}}.
+
+    ``only_n`` keeps only instances of that dimension. This is needed for
+    value functions whose instances have variable d (DistilBERT — token
+    count differs per text): instances of different d have different
+    budget grids, so averaging by exact budget mixes inconsistent instance
+    subsets and the curve becomes jagged. Restricting to one d makes every
+    kept instance share the same budget grid -> a clean averaged curve.
+    """
     mse_acc: dict[str, dict[int, list[float]]] = defaultdict(
         lambda: defaultdict(list))
     rt_acc: dict[str, dict[int, list[float]]] = defaultdict(
@@ -59,6 +67,8 @@ def load_grid(csv_path: Path):
         for row in csv.DictReader(f):
             method = row["method"]
             budget = int(row["budget"])
+            if only_n is not None and int(row["n"]) != only_n:
+                continue
             try:
                 mse = float(row["mse"])
                 runtime = float(row.get("runtime", "nan"))
@@ -87,8 +97,9 @@ def _methods_in_order(grid: dict) -> list[str]:
         m for m in grid if m not in order]
 
 
-def plot_all(csv_path: Path, game: str, out_dir: Path) -> int:
-    grid = load_grid(csv_path)
+def plot_all(csv_path: Path, game: str, out_dir: Path,
+             only_n: int | None = None) -> int:
+    grid = load_grid(csv_path, only_n=only_n)
     if not grid:
         print(f"No usable rows in {csv_path}")
         return 1
@@ -175,11 +186,15 @@ def main(argv: list[str] | None = None) -> int:
                         help="Value-function name, used in titles/filenames.")
     parser.add_argument("--out-dir", required=True, type=Path,
                         help="Directory for the PNG figures.")
+    parser.add_argument("--only-n", type=int, default=None,
+                        help="Keep only instances of this dimension d. Use "
+                             "for variable-d value functions (DistilBERT) so "
+                             "the averaged curve is not jagged.")
     args = parser.parse_args(argv)
     if not args.csv.exists():
         print(f"CSV not found: {args.csv}")
         return 1
-    return plot_all(args.csv, args.game, args.out_dir)
+    return plot_all(args.csv, args.game, args.out_dir, only_n=args.only_n)
 
 
 if __name__ == "__main__":
