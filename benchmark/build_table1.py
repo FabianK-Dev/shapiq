@@ -85,17 +85,17 @@ def build(results_dir: Path) -> int:
     # ---- MSE grid -----------------------------------------------------------
     print()
     print("OddSHAP paper Table 1 reproduction — mean MSE at m ~= 100d")
-    header = f"{'Estimator':<20}" + "".join(
+    header = f"{'Estimator':<28}" + "".join(
         f"{label:>13}" for _, label, _ in present)
     print(header)
-    print(f"{'(d)':<20}" + "".join(f"{d:>13}" for _, _, d in present))
+    print(f"{'(d)':<28}" + "".join(f"{d:>13}" for _, _, d in present))
     print("-" * len(header))
     for method in ROW_ORDER:
         cells = []
         for key, _, _ in present:
             mse = grid[key].get(method)
             cells.append(f"{mse:>13.2e}" if mse is not None else f"{'-':>13}")
-        print(f"{method:<20}" + "".join(cells))
+        print(f"{method:<28}" + "".join(cells))
 
     # ---- ranks --------------------------------------------------------------
     print("-" * len(header))
@@ -118,13 +118,13 @@ def build(results_dir: Path) -> int:
             )
             rank = ordered.index(method) + 1 if method in ordered else None
             cells.append(f"{rank:>13}" if rank else f"{'-':>13}")
-        print(f"{'rank ' + method:<20}" + "".join(cells))
+        print(f"{('rank ' + method):<28}" + "".join(cells))
 
     print("-" * len(header))
     avg_ranks = {m: (float(np.mean(ranks[m])) if ranks[m] else float("nan"))
                  for m in ROW_ORDER}
     for method in ROW_ORDER:
-        print(f"{'avg rank ' + method:<20}{avg_ranks[method]:>13.2f}")
+        print(f"{('avg rank ' + method):<28}{avg_ranks[method]:>13.2f}")
 
     # ---- verdict ------------------------------------------------------------
     print()
