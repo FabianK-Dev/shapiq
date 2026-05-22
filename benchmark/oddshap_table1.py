@@ -64,23 +64,33 @@ from shapiq import ExactComputer
 # package __init__.
 from shapiq.approximator import (
     SVARM,
-    MSRBiased,
     PermutationSamplingSV,
     UnbiasedKernelSHAP,
 )
 from shapiq.approximator.regression.oddshap import OddSHAP
 
 # Table-1 row label -> approximator class.
+#
+# OddSHAP is the row under verification. MSR / SVARM / PermutationSampling are
+# shapiq's own, well-established implementations and act as the harness sanity
+# check: if they reproduce the paper, the harness and protocol are sound, so
+# the OddSHAP row can be read as a verdict on our OddSHAP implementation.
+#
+# Table 1's "RegressionMSR" row is intentionally NOT run here: the paper's
+# RegressionMSR is the authors' own `shapiq.approximator.regressionMSR`
+# class (vendored in their PolySHAP repo), which is a different estimator
+# from upstream shapiq's `MSRBiased` — mapping it to `MSRBiased` gave a
+# stable ~1300x mismatch. It is a baseline, not OddSHAP, so it is dropped
+# rather than mis-mapped.
 TABLE1_ESTIMATORS: dict[str, type] = {
     "MSR": UnbiasedKernelSHAP,
     "SVARM": SVARM,
     "PermutationSampling": PermutationSamplingSV,
-    "RegressionMSR": MSRBiased,
     "OddSHAP": OddSHAP,
 }
 
-# Multi-index estimators need the explicit SV-mode signature.
-_NEEDS_SV_KWARGS = {"MSRBiased"}
+# Multi-index estimators that need the explicit SV-mode signature (none today).
+_NEEDS_SV_KWARGS: set[str] = set()
 
 
 # -----------------------------------------------------------------------------
@@ -173,10 +183,32 @@ def make_vit16_instances(n_instances: int, device: str | None = None):
         yield GameInstance(game=game, n=game.n_players, label=f"vit16_{idx}")
 
 
+def _make_tabular_factory(name: str):
+    """Adapt a paper tabular value function to the (n_instances, device) API.
+
+    The tabular value functions are path-dependent TreeSHAP games over a
+    RandomForest (see ``_paper_datasets``); ground truth is the game's own
+    polynomial TreeSHAP-IQ ``exact_values``, so d up to 101 is feasible.
+    """
+    def factory(n_instances: int, device: str | None = None):
+        del device  # tree games are CPU-only
+        from _paper_datasets import make_tabular_games
+
+        for game, label in make_tabular_games(name, n_instances):
+            yield GameInstance(game=game, n=game.n_players, label=label)
+
+    return factory
+
+
 GAME_FACTORIES = {
     "distilbert": make_distilbert_instances,
     "vit16": make_vit16_instances,
 }
+# Tabular paper value functions (Estate / Cancer / IL60 / CG60 / NHANES /
+# Crime) — registered dynamically so the choice list stays in one place.
+for _tabular_name in ("realestate", "cancer", "independentlinear60",
+                      "corrgroups60", "nhanes", "crime"):
+    GAME_FACTORIES[_tabular_name] = _make_tabular_factory(_tabular_name)
 
 
 # -----------------------------------------------------------------------------
@@ -184,11 +216,22 @@ GAME_FACTORIES = {
 # -----------------------------------------------------------------------------
 
 
+# OddSHAP proxy interaction-screening order. The class defaults
+# proxy_max_order to n, which makes InterventionalTreeExplainer build a full
+# 2**n interaction lookup inside _select_odd_interactions -> MemoryError for
+# d >= ~25. Order-3 is the dominant higher-order odd interaction and keeps the
+# lookup tractable up to d=101 (C(101,<=3) ~ 1.7e5). Capped here so the same
+# OddSHAP configuration runs across every Table-1 value function.
+ODDSHAP_PROXY_MAX_ORDER = 3
+
+
 def construct_estimator(name: str, cls: type, n: int, seed: int):
     """Instantiate an estimator in SV mode; return None if it cannot be built."""
     kwargs = {"n": n, "random_state": seed}
     if cls.__name__ in _NEEDS_SV_KWARGS:
         kwargs.update(index="SV", max_order=1)
+    if cls is OddSHAP:
+        kwargs["proxy_max_order"] = min(ODDSHAP_PROXY_MAX_ORDER, n)
     try:
         return cls(**kwargs)
     except TypeError:
@@ -202,6 +245,33 @@ def construct_estimator(name: str, cls: type, n: int, seed: int):
 
 def mse(estimated: np.ndarray, ground_truth: np.ndarray) -> float:
     return float(np.mean((estimated - ground_truth) ** 2))
+
+
+def _singletons(iv, n: int) -> np.ndarray:
+    """Extract the n order-1 (singleton) Shapley values as a flat vector.
+
+    Normalises both ground truth and estimator output to the same length-n
+    representation regardless of whether the InteractionValues object also
+    carries an order-0 baseline term.
+    """
+    return np.array([float(iv[(i,)]) for i in range(n)], dtype=float)
+
+
+def exact_ground_truth(game, n: int) -> np.ndarray:
+    """Exact singleton Shapley values for the game.
+
+    ``TreeSHAPIQXAI`` games carry a polynomial TreeSHAP-IQ ``exact_values``
+    that is feasible for any d (up to the paper's d=101); every other game
+    uses the ``ExactComputer`` 2**d path, feasible only for small d such as
+    DistilBERT (d=14) and ViT16 (d=16).
+    """
+    from shapiq_games.benchmark.treeshapiq_xai import TreeSHAPIQXAI
+
+    if isinstance(game, TreeSHAPIQXAI):
+        iv = game.exact_values(index="SV", order=1)
+    else:
+        iv = ExactComputer(game, n_players=n)(index="SV")
+    return _singletons(iv, n)
 
 
 # -----------------------------------------------------------------------------
@@ -220,10 +290,11 @@ class InstanceResult:
 def evaluate_instance(inst: GameInstance, seed: int = 0) -> InstanceResult:
     """Compute exact ground truth and every estimator's MSE for one game."""
     n = inst.n
-    # Paper protocol: budget m ~= 100 * d, clamped to the affordable range.
-    budget = min(2 ** n, max(n + 1, 100 * n))
+    # Paper protocol: budget m ~= 100 * d, clamped to the affordable range
+    # (>= n+1 so every estimator can run, <= 2**d, <= 20000 as in the paper).
+    budget = min(2 ** n, 20000, max(n + 1, 100 * n))
 
-    exact = ExactComputer(inst.game, n_players=n)(index="SV").values
+    exact = exact_ground_truth(inst.game, n)
 
     per_method: dict[str, float] = {}
     for name, cls in TABLE1_ESTIMATORS.items():
@@ -236,10 +307,12 @@ def evaluate_instance(inst: GameInstance, seed: int = 0) -> InstanceResult:
         except (ValueError, RuntimeError):
             per_method[name] = float("nan")
             continue
-        if iv.values.shape != exact.shape:
+        try:
+            approx = _singletons(iv, n)
+        except (KeyError, IndexError, TypeError):
             per_method[name] = float("nan")
             continue
-        per_method[name] = mse(iv.values, exact)
+        per_method[name] = mse(approx, exact)
 
     return InstanceResult(
         label=inst.label, n=n, budget=budget, per_method_mse=per_method,
