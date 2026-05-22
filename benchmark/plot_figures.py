@@ -41,6 +41,14 @@ METHOD_STYLE = {
 }
 
 
+# MSE below this is exact computation (budget >= 2**d), not approximation
+# error — excluded so it does not distort an approximation-quality plot.
+# This matters for value functions whose instances have variable d (e.g.
+# DistilBERT, where token count differs per text): some instances reach
+# exact computation while others do not.
+_EXACT_MSE_FLOOR = 1e-12
+
+
 def load_grid(csv_path: Path):
     """Return {method: {budget: (mean_mse, mean_runtime)}}."""
     mse_acc: dict[str, dict[int, list[float]]] = defaultdict(
@@ -56,7 +64,7 @@ def load_grid(csv_path: Path):
                 runtime = float(row.get("runtime", "nan"))
             except (ValueError, TypeError):
                 continue
-            if not math.isnan(mse):
+            if not math.isnan(mse) and mse >= _EXACT_MSE_FLOOR:
                 mse_acc[method][budget].append(mse)
             if not math.isnan(runtime):
                 rt_acc[method][budget].append(runtime)
