@@ -280,43 +280,68 @@ def exact_ground_truth(game, n: int) -> np.ndarray:
 
 
 @dataclass
-class InstanceResult:
+class ResultRow:
+    """One (instance, method, budget) measurement."""
+
     label: str
     n: int
     budget: int
-    per_method_mse: dict[str, float]  # method -> MSE (NaN if skipped)
+    method: str
+    mse: float
+    runtime: float
 
 
-def evaluate_instance(inst: GameInstance, seed: int = 0) -> InstanceResult:
-    """Compute exact ground truth and every estimator's MSE for one game."""
+def budget_grid(n: int, *, grid: bool) -> list[int]:
+    """Budgets to evaluate for a value function of dimension n.
+
+    ``grid=False`` -> the single Table-1 budget m ~= 100d.
+    ``grid=True``  -> the paper's Figure-2 budget sweep: 10 log-spaced
+    points from d+1 to min(2**d, 20000).
+    """
+    cap = min(2 ** n, 20000)
+    if not grid:
+        return [min(cap, max(n + 1, 100 * n))]
+    lo = float(n + 1)
+    points = np.logspace(np.log10(lo), np.log10(float(cap)), 10)
+    return sorted({int(round(b)) for b in points})
+
+
+def evaluate_instance(
+    inst: GameInstance, budgets: list[int], seed: int = 0,
+) -> list[ResultRow]:
+    """Exact ground truth + every estimator's MSE and runtime for one game.
+
+    Each estimator is evaluated at every budget. The estimator is rebuilt
+    per budget so sampler state never leaks between measurements.
+    """
     n = inst.n
-    # Paper protocol: budget m ~= 100 * d, clamped to the affordable range
-    # (>= n+1 so every estimator can run, <= 2**d, <= 20000 as in the paper).
-    budget = min(2 ** n, 20000, max(n + 1, 100 * n))
-
     exact = exact_ground_truth(inst.game, n)
 
-    per_method: dict[str, float] = {}
+    rows: list[ResultRow] = []
     for name, cls in TABLE1_ESTIMATORS.items():
-        estimator = construct_estimator(name, cls, n, seed)
-        if estimator is None:
-            per_method[name] = float("nan")
-            continue
-        try:
-            iv = estimator.approximate(budget, inst.game)
-        except (ValueError, RuntimeError):
-            per_method[name] = float("nan")
-            continue
-        try:
-            approx = _singletons(iv, n)
-        except (KeyError, IndexError, TypeError):
-            per_method[name] = float("nan")
-            continue
-        per_method[name] = mse(approx, exact)
-
-    return InstanceResult(
-        label=inst.label, n=n, budget=budget, per_method_mse=per_method,
-    )
+        for budget in budgets:
+            estimator = construct_estimator(name, cls, n, seed)
+            if estimator is None:
+                rows.append(ResultRow(inst.label, n, budget, name,
+                                      float("nan"), float("nan")))
+                continue
+            t0 = time.perf_counter()
+            try:
+                iv = estimator.approximate(budget, inst.game)
+            except (ValueError, RuntimeError, MemoryError):
+                rows.append(ResultRow(inst.label, n, budget, name,
+                                      float("nan"), float("nan")))
+                continue
+            runtime = time.perf_counter() - t0
+            try:
+                approx = _singletons(iv, n)
+            except (KeyError, IndexError, TypeError):
+                rows.append(ResultRow(inst.label, n, budget, name,
+                                      float("nan"), float("nan")))
+                continue
+            rows.append(ResultRow(inst.label, n, budget, name,
+                                  mse(approx, exact), runtime))
+    return rows
 
 
 # -----------------------------------------------------------------------------
@@ -324,20 +349,22 @@ def evaluate_instance(inst: GameInstance, seed: int = 0) -> InstanceResult:
 # -----------------------------------------------------------------------------
 
 
-def summarise(results: list[InstanceResult]) -> dict[str, dict[str, float]]:
-    """Per-method mean / 1st-quartile / median / 3rd-quartile MSE."""
+def summarise(rows: list[ResultRow]) -> dict[str, dict[str, float]]:
+    """Per-method mean / quartile MSE at the largest evaluated budget."""
+    if not rows:
+        return {}
+    top_budget = max(r.budget for r in rows)
     summary: dict[str, dict[str, float]] = {}
     for name in TABLE1_ESTIMATORS:
         values = [
-            r.per_method_mse[name]
-            for r in results
-            if not np.isnan(r.per_method_mse.get(name, float("nan")))
+            r.mse for r in rows
+            if r.method == name and r.budget == top_budget
+            and not np.isnan(r.mse)
         ]
         if not values:
-            summary[name] = {
-                "mean": float("nan"), "q1": float("nan"),
-                "median": float("nan"), "q3": float("nan"), "n_ok": 0,
-            }
+            summary[name] = {"mean": float("nan"), "q1": float("nan"),
+                             "median": float("nan"), "q3": float("nan"),
+                             "n_ok": 0}
             continue
         summary[name] = {
             "mean": float(np.mean(values)),
@@ -361,15 +388,15 @@ def print_table(summary: dict[str, dict[str, float]], game_name: str) -> None:
               f"{stats['n_ok']:>6}")
 
 
-def write_csv(results: list[InstanceResult], path: Path) -> None:
-    """Long-format CSV: one row per (instance, method)."""
+def write_csv(rows: list[ResultRow], path: Path) -> None:
+    """Long-format CSV: one row per (instance, method, budget)."""
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow(["instance", "n", "budget", "method", "mse"])
-        for r in results:
-            for name, value in r.per_method_mse.items():
-                writer.writerow([r.label, r.n, r.budget, name, value])
+        writer.writerow(["instance", "n", "budget", "method", "mse", "runtime"])
+        for r in rows:
+            writer.writerow([r.label, r.n, r.budget, r.method, r.mse,
+                             r.runtime])
 
 
 # -----------------------------------------------------------------------------
@@ -402,31 +429,42 @@ def main(argv: list[str] | None = None) -> int:
         help="Device for the value-function model, e.g. 'cuda' or 'cpu'. "
              "Defaults to the library default (CPU).",
     )
+    parser.add_argument(
+        "--budgets", default="single", choices=("single", "grid"),
+        help="'single' = the Table-1 budget m~=100d; 'grid' = the Figure-2 "
+             "log-spaced budget sweep (10 points). Default: single.",
+    )
     args = parser.parse_args(argv)
 
     factory = GAME_FACTORIES[args.game]
-    results: list[InstanceResult] = []
-    print(f"Reproducing OddSHAP Table 1 row on '{args.game}', "
-          f"{args.instances} instances, device={args.device or 'default'} ...",
-          file=sys.stderr)
+    rows: list[ResultRow] = []
+    grid = args.budgets == "grid"
+    print(f"Reproducing OddSHAP {'Figure 2' if grid else 'Table 1'} on "
+          f"'{args.game}', {args.instances} instances, "
+          f"device={args.device or 'default'} ...", file=sys.stderr)
 
+    n_done = 0
     for i, inst in enumerate(factory(args.instances, args.device), start=1):
         t0 = time.perf_counter()
-        result = evaluate_instance(inst, seed=args.seed)
-        results.append(result)
-        odd = result.per_method_mse.get("OddSHAP", float("nan"))
+        budgets = budget_grid(inst.n, grid=grid)
+        inst_rows = evaluate_instance(inst, budgets, seed=args.seed)
+        rows.extend(inst_rows)
+        n_done += 1
+        odd = [r.mse for r in inst_rows
+               if r.method == "OddSHAP" and r.budget == max(budgets)]
+        odd_mse = odd[0] if odd else float("nan")
         print(f"  [{i}/{args.instances}] {inst.label:<16} n={inst.n:>3} "
-              f"budget={result.budget:>6}  OddSHAP MSE={odd:.3e}  "
+              f"budgets={len(budgets)}  OddSHAP MSE={odd_mse:.3e}  "
               f"({time.perf_counter() - t0:.1f}s)", file=sys.stderr)
 
-    if not results:
+    if not rows:
         print("No instances evaluated.", file=sys.stderr)
         return 1
 
-    write_csv(results, args.output)
-    summary = summarise(results)
+    write_csv(rows, args.output)
+    summary = summarise(rows)
     print_table(summary, args.game)
-    print(f"\nCSV written: {args.output}", file=sys.stderr)
+    print(f"\n{n_done} instances, CSV written: {args.output}", file=sys.stderr)
     return 0
 
 
