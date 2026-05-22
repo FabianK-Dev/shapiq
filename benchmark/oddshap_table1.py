@@ -136,18 +136,28 @@ class GameInstance:
     label: str
 
 
-def make_distilbert_instances(n_instances: int):
-    """Yield DistilBERT sentiment value-function games, one per review text."""
+def make_distilbert_instances(n_instances: int, device: str | None = None):
+    """Yield DistilBERT sentiment value-function games, one per review text.
+
+    ``device`` is forwarded to the shapiq SentimentAnalysis game — pass
+    ``"cuda"`` (or a GPU index) to run the DistilBERT forward passes on a
+    GPU, which is the dominant cost of the exact ground-truth computation.
+    """
     from shapiq_games.benchmark.local_xai import SentimentAnalysis
 
     texts = _SENTIMENT_TEXTS[:n_instances]
     for idx, text in enumerate(texts):
-        game = SentimentAnalysis(input_text=text)
+        game = SentimentAnalysis(input_text=text, device=device)
         yield GameInstance(game=game, n=game.n_players, label=f"distilbert_{idx}")
 
 
-def make_vit16_instances(n_instances: int):
-    """Yield ViT16 image value-function games, one per ImageNet example."""
+def make_vit16_instances(n_instances: int, device: str | None = None):
+    """Yield ViT16 image value-function games, one per ImageNet example.
+
+    The ViT setup auto-selects CUDA when available; ``device`` is accepted
+    for a uniform factory signature and currently unused here.
+    """
+    del device  # ViT setup auto-detects CUDA
     from shapiq_games.benchmark.imagenet_examples import get_imagenet_example
     from shapiq_games.benchmark.local_xai import ImageClassifier
 
@@ -308,14 +318,20 @@ def main(argv: list[str] | None = None) -> int:
         "--output", default="benchmark/results/oddshap_table1.csv", type=Path,
         help="Output CSV path.",
     )
+    parser.add_argument(
+        "--device", default=None,
+        help="Device for the value-function model, e.g. 'cuda' or 'cpu'. "
+             "Defaults to the library default (CPU).",
+    )
     args = parser.parse_args(argv)
 
     factory = GAME_FACTORIES[args.game]
     results: list[InstanceResult] = []
     print(f"Reproducing OddSHAP Table 1 row on '{args.game}', "
-          f"{args.instances} instances ...", file=sys.stderr)
+          f"{args.instances} instances, device={args.device or 'default'} ...",
+          file=sys.stderr)
 
-    for i, inst in enumerate(factory(args.instances), start=1):
+    for i, inst in enumerate(factory(args.instances, args.device), start=1):
         t0 = time.perf_counter()
         result = evaluate_instance(inst, seed=args.seed)
         results.append(result)
