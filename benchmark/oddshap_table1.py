@@ -152,18 +152,24 @@ def make_distilbert_instances(n_instances: int, device: str | None = None):
 
 
 def make_vit16_instances(n_instances: int, device: str | None = None):
-    """Yield ViT16 image value-function games, one per ImageNet example.
+    """Yield ViT16 image value-function games, one per bundled ImageNet example.
 
-    The ViT setup auto-selects CUDA when available; ``device`` is accepted
-    for a uniform factory signature and currently unused here.
+    Uses the ``vit_16_patches`` model (4x4 grid -> d=16 players), matching the
+    paper's ``ViT4by4Patches`` value function. The ViT setup auto-selects CUDA
+    when available; ``device`` is accepted for a uniform factory signature.
     """
     del device  # ViT setup auto-detects CUDA
-    from shapiq_games.benchmark.imagenet_examples import get_imagenet_example
+    from pathlib import Path as _Path
+
+    import shapiq_games
     from shapiq_games.benchmark.local_xai import ImageClassifier
 
-    for idx in range(n_instances):
-        image = get_imagenet_example(idx)
-        game = ImageClassifier(x_explain=image, model_name="vit_16_patches")
+    img_dir = _Path(shapiq_games.__file__).parent / "benchmark" / "imagenet_examples"
+    images = sorted(img_dir.glob("*.JPEG")) + sorted(img_dir.glob("*.jpg"))
+    for idx, img_path in enumerate(images[:n_instances]):
+        game = ImageClassifier(
+            x_explain_path=str(img_path), model_name="vit_16_patches",
+        )
         yield GameInstance(game=game, n=game.n_players, label=f"vit16_{idx}")
 
 
