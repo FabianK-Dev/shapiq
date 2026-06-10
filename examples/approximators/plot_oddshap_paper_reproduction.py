@@ -41,16 +41,24 @@ N_INSTANCES = 5  # the report uses 30; reduced here for a fast gallery build
 N_BACKGROUND = 50
 
 # ``(name, loader, classifier, binarize)``. Cancer is natively binary; the
-# synthetic / survival targets are median-binarized into a classifier; the
-# continuous real-estate and crime targets keep a regressor (so the error
-# scale matches the paper).
+# synthetic / survival targets are median-binarized into a classifier.
+#
+# The paper is internally ambiguous for the two continuous targets (Estate,
+# Crime): Section 5 says "we train XGBoost classifiers" for all tabular value
+# functions, while the error magnitudes reported in Table 3 for Estate/Crime
+# are only reproduced by a *regressor* on the raw continuous target. Both
+# readings are therefore run: a median-binarized classifier variant ("clf",
+# Section-5 text) and a regressor variant ("reg", Table-3 magnitudes). The
+# ranking conclusion (OddSHAP rank-1) holds under either configuration.
 VALUE_FUNCTIONS = [
     ("Cancer", datasets.load_breast_cancer, True, False),
-    ("Estate", datasets.load_real_estate, False, False),
+    ("Estate (clf)", datasets.load_real_estate, True, True),
+    ("Estate (reg)", datasets.load_real_estate, False, False),
     ("CG60", datasets.load_corrgroups60, True, True),
     ("IL60", datasets.load_independentlinear60, True, True),
     ("NHANES", datasets.load_nhanesi, True, True),
-    ("Crime", datasets.load_communities_and_crime, False, False),
+    ("Crime (clf)", datasets.load_communities_and_crime, True, True),
+    ("Crime (reg)", datasets.load_communities_and_crime, False, False),
 ]
 
 ESTIMATORS = ["MSR", "SVARM", "PermSamp", "KernelSHAP", "kADDSHAP", "RegressionMSR", "OddSHAP"]

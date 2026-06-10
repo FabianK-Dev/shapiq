@@ -89,11 +89,19 @@ ESTIMATORS = ["MSR", "SVARM", "PermSamp", "KernelSHAP", "kADDSHAP", "RegressionM
 N_INSTANCES = 5
 N_BACKGROUND = 50
 # (name, loader, classifier, binarize)
+#
+# Note on Estate: the paper's Section 5 says all tabular value functions use
+# "XGBoost classifiers", while the Table-3 error magnitudes for the continuous
+# targets (Estate, Crime) are only reproduced by a regressor on the raw target.
+# Both readings are therefore included for Estate; the full sweep over all
+# eight configurations lives in the gallery example. The ranking conclusion
+# (OddSHAP rank-1) holds under either configuration.
 VALUE_FUNCTIONS = [
     ("Cancer", datasets.load_breast_cancer, True, False),
     ("CG60", datasets.load_corrgroups60, True, True),
     ("NHANES", datasets.load_nhanesi, True, True),
-    ("Estate", datasets.load_real_estate, False, False),
+    ("Estate (clf)", datasets.load_real_estate, True, True),
+    ("Estate (reg)", datasets.load_real_estate, False, False),
 ]
 
 medians = {est: {} for est in ESTIMATORS}
