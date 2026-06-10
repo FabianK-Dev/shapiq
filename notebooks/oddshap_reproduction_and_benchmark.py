@@ -340,8 +340,13 @@ _ppts = {}
 for _r in _read(_CR / "paper_fig2_extracted.csv"):
     if _r["value_function"] == _PNAME[_VF]:
         _ppts.setdefault(_r["method"], []).append((float(_r["budget"]), float(_r["mse"])))
+# configuration-consistent curves: the continuous targets (Estate, Crime) use the
+# regressor reading end to end (matching the paper's magnitudes); the rest classifier
+_curve_file = ("fig2_budget_curves_n10_regressor.csv"
+               if _VF in ("realestate", "crime")
+               else "fig2_budget_curves_n10_classifier.csv")
 _curves = {}
-for _r in _read(_CR / "fig2_budget_curves_n10_classifier.csv"):
+for _r in _read(_CR / _curve_file):
     if _r["value_function"] == _VF:
         _curves.setdefault(_r["estimator"], {})[int(_r["budget"])] = float(_r["median_mse"])
 
@@ -364,7 +369,8 @@ for _e, _col in OURCOL.items():
                  lw=2.4 if _e == "OddSHAP" else 1.2,
                  label=_e + (" *" if _e in ("KernelSHAP", "kADDSHAP") else ""))
 axc.set_xscale("log"); axc.set_yscale("log"); axc.grid(True, alpha=0.3)
-axc.set_title("ours (N=10; * = not in the paper)", fontsize=10)
+_reading = "regressor" if _VF in ("realestate", "crime") else "classifier"
+axc.set_title(f"ours (N=10, {_reading} reading; * = not in the paper)", fontsize=10)
 axc.set_xlabel("Budget (m)"); axc.legend(fontsize=6, ncol=2)
 axi = fig.add_subplot(gs[1, :])
 for _i, (_ok, _pk) in enumerate(_EST):
