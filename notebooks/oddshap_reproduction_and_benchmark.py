@@ -313,57 +313,76 @@ plt.show()
 # %% [markdown]
 # ## Side-by-side with the paper: curves and intervals per value function
 #
-# For each value function, the paper's original Figure-2 panel (cropped from the
-# PDF, `cluster_results/paper_fig2_panels/`) is shown next to our budget curves
-# (from the committed `fig2_budget_curves_n10_classifier.csv`), with the IQR
-# interval comparison at the Table-1 budget below. This is the full
-# paper-vs-reproduction view for one dataset; change `_VF` to inspect another.
+# The paper's Figure-2 curves were extracted from the PDF's vector layer (marker
+# coordinates + per-method stroke colors; budgets from the panel's log grid, the
+# MSE axis calibrated against the paper's appendix Table 3 and cross-validated to
+# within ~1.2x on most panels). The extracted data is committed as
+# `cluster_results/paper_fig2_extracted.csv`, so the paper panel below is a
+# faithful *redraw from data*, not a screenshot - and both panels share the same
+# per-method colors and the same y-axis, so magnitudes compare directly.
 
 # %%
-import matplotlib.image as _mpimg
+PCOL = {"MSR": (0.816, 0.816, 0.816), "SVARM": (0.549, 0.549, 0.549),
+        "PermutationSampling": (0.333, 0.333, 0.333), "ProxyLGBM": (0.69, 0.745, 0.773),
+        "RegressionMSR": (0.247, 0.318, 0.71), "3-PolySHAP": (0.486, 0.702, 0.259),
+        "LeverageSHAP": (0.0, 0.588, 0.533), "OddSHAP": (0.902, 0.29, 0.098)}
+OURCOL = {"MSR": PCOL["MSR"], "SVARM": PCOL["SVARM"], "PermSamp": PCOL["PermutationSampling"],
+          "RegressionMSR": PCOL["RegressionMSR"], "OddSHAP": PCOL["OddSHAP"],
+          "KernelSHAP": (0.80, 0.60, 0.85), "kADDSHAP": (0.95, 0.70, 0.30)}
 
-_VF = "cancer"  # one of: cancer, realestate, corrgroups60, independentlinear60, nhanes, crime
+_VF = "cancer"  # cancer / realestate / corrgroups60 / independentlinear60 / nhanes / crime
 _PNAME = {"cancer": "cancer", "realestate": "estate", "corrgroups60": "cg60",
           "independentlinear60": "il60", "nhanes": "nhanes", "crime": "crime"}
 _VFL = {"cancer": "Cancer", "realestate": "Estate", "corrgroups60": "CG60",
         "independentlinear60": "IL60", "nhanes": "NHANES", "crime": "Crime"}[_VF]
 
+_ppts = {}
+for _r in _read(_CR / "paper_fig2_extracted.csv"):
+    if _r["value_function"] == _PNAME[_VF]:
+        _ppts.setdefault(_r["method"], []).append((float(_r["budget"]), float(_r["mse"])))
 _curves = {}
 for _r in _read(_CR / "fig2_budget_curves_n10_classifier.csv"):
     if _r["value_function"] == _VF:
         _curves.setdefault(_r["estimator"], {})[int(_r["budget"])] = float(_r["median_mse"])
 
-fig = plt.figure(figsize=(10.5, 7.0))
-gs = fig.add_gridspec(2, 2, height_ratios=[1.15, 1.0], hspace=0.32, wspace=0.18)
+fig = plt.figure(figsize=(11.0, 7.4))
+gs = fig.add_gridspec(2, 2, height_ratios=[1.1, 1.0], hspace=0.34, wspace=0.16)
 axp = fig.add_subplot(gs[0, 0])
-axp.imshow(_mpimg.imread(_CR / "paper_fig2_panels" / f"paper_fig2_{_PNAME[_VF]}.png"))
-axp.axis("off"); axp.set_title("paper (Figure 2)", fontsize=10, color="#2266AA")
-axc = fig.add_subplot(gs[0, 1])
-for _e, _c in _curves.items():
-    _xs = sorted(_c); _ys = [_c[b] for b in _xs]
-    _st = dict(lw=2.4, color="#CC3311") if _e == "OddSHAP" else dict(lw=1.0, alpha=0.85)
-    axc.plot(_xs, _ys, marker="o", ms=2.5, label=_e, **_st)
+for _m, _pts in sorted(_ppts.items()):
+    _pts = sorted(_pts)
+    axp.plot([q[0] for q in _pts], [q[1] for q in _pts], marker="o", ms=2.6,
+             color=PCOL[_m], lw=2.2 if _m == "OddSHAP" else 1.2, label=_m)
+axp.set_xscale("log"); axp.set_yscale("log"); axp.grid(True, alpha=0.3)
+axp.set_title("paper Fig. 2 (extracted vector data)", fontsize=10)
+axp.set_xlabel("Budget (m)"); axp.set_ylabel("MSE (median)"); axp.legend(fontsize=6, ncol=2)
+axc = fig.add_subplot(gs[0, 1], sharey=axp)
+for _e, _col in OURCOL.items():
+    _cv = _curves.get(_e, {})
+    _xs = sorted(_cv)
+    if _xs:
+        axc.plot(_xs, [_cv[b] for b in _xs], marker="o", ms=2.6, color=_col,
+                 lw=2.4 if _e == "OddSHAP" else 1.2,
+                 label=_e + (" *" if _e in ("KernelSHAP", "kADDSHAP") else ""))
 axc.set_xscale("log"); axc.set_yscale("log"); axc.grid(True, alpha=0.3)
-axc.set_xlabel("Budget (m)"); axc.set_ylabel("MSE (median)")
-axc.set_title("ours (N=10, classifier reading)", fontsize=10, color="#CC3311")
-axc.legend(fontsize=6.5, ncol=2)
+axc.set_title("ours (N=10; * = not in the paper)", fontsize=10)
+axc.set_xlabel("Budget (m)"); axc.legend(fontsize=6, ncol=2)
 axi = fig.add_subplot(gs[1, :])
 for _i, (_ok, _pk) in enumerate(_EST):
     _p = _paper.get((_pk, _VFL))
-    if _p is None:
-        continue
-    axi.add_patch(plt.Rectangle((_i - 0.28, _p["q1"]), 0.24, _p["q3"] - _p["q1"],
-                                facecolor="#2266AA", alpha=0.55))
-    axi.hlines(_p["median"], _i - 0.28, _i - 0.04, color="#2266AA", lw=2.4)
+    _col = PCOL[_pk]
+    if _p:
+        axi.add_patch(plt.Rectangle((_i - 0.28, _p["q1"]), 0.24, _p["q3"] - _p["q1"],
+                                    facecolor=_col, alpha=0.45, edgecolor=_col, hatch="//"))
+        axi.hlines(_p["median"], _i - 0.28, _i - 0.04, color=_col, lw=2.4)
     _o = _ours.get((_ok, _VFL))
     if _o:
         axi.add_patch(plt.Rectangle((_i + 0.04, _o[0]), 0.24, _o[2] - _o[0],
-                                    facecolor="#CC3311", alpha=0.55))
-        axi.hlines(_o[1], _i + 0.04, _i + 0.28, color="#CC3311", lw=2.4)
+                                    facecolor=_col, alpha=0.9, edgecolor="k", lw=0.4))
+        axi.hlines(_o[1], _i + 0.04, _i + 0.28, color="k", lw=2.0)
 axi.set_yscale("log"); axi.set_xticks(range(len(_EST)))
 axi.set_xticklabels([e[0] for e in _EST]); axi.grid(True, axis="y", alpha=0.3)
-axi.set_title("IQR at the Table-1 budget - blue: paper, red: ours")
-fig.suptitle(f"{_VFL} - paper vs reproduction", fontsize=13)
+axi.set_title("IQR at the Table-1 budget - hatched: paper (Table 3), solid: ours (N=30)")
+fig.suptitle(f"{_VFL} - paper vs reproduction (matched colors)", fontsize=13)
 plt.show()
 
 # %% [markdown]
