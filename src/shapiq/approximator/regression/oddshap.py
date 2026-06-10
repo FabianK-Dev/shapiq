@@ -37,7 +37,14 @@ def _import_lightgbm() -> ModuleType:
 
 
 class OddSHAP(Approximator):
-    """OddSHAP approximator for first-order Shapley values."""
+    """OddSHAP approximator for first-order Shapley values (Fumagalli et al., 2026).
+
+    Note:
+        Where Algorithm 1 of the paper falls back to TreeSHAP for budgets below
+        ``n * interaction_factor``, this implementation raises ``ValueError`` instead
+        (no silent downgrade to another estimator). It therefore does not reproduce the
+        low-budget, high-dimension regime of the paper's Figure 2.
+    """
 
     valid_indices: tuple[str, ...] = ("SV",)
 
@@ -74,11 +81,11 @@ class OddSHAP(Approximator):
         self,
         n: int,
         *,
-        pairing_trick: bool = True,  # Theorem 3.2 Alg. 1
+        pairing_trick: bool = True,
         sampling_weights: np.ndarray | None = None,
         random_state: int | None = None,
         odd_only: bool = True,
-        interaction_factor: int = 10,  # standard setting according to paper
+        interaction_factor: int = 10,  # eta; paper default
         tree_params: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> None:
@@ -86,8 +93,8 @@ class OddSHAP(Approximator):
         del kwargs
         _import_lightgbm()
 
-        # OddSHAP uses its own coalition-size distribution.
-        # Compute here before calling the base class, because base class creates the sampler during super().__init__()
+        # OddSHAP's own coalition-size distribution; set before super().__init__,
+        # which builds the sampler.
         if sampling_weights is None:
             sampling_weights = self._init_sampling_weights_static(n)
 
@@ -106,6 +113,9 @@ class OddSHAP(Approximator):
             msg = "This OddSHAP implementation supports only odd_only=True."
             raise ValueError(msg)
         self.odd_only = True
+        if interaction_factor < 1:
+            msg = "interaction_factor (eta) must be a positive integer."
+            raise ValueError(msg)
         self.interaction_factor = interaction_factor
         self.tree_params = tree_params
 
@@ -131,21 +141,29 @@ class OddSHAP(Approximator):
             Estimated first-order Shapley values.
 
         Raises:
-            ValueError: If the budget is too small for the OddSHAP regression.
+            ValueError: If ``budget < n * interaction_factor``. Algorithm 1 of the paper
+                falls back to TreeSHAP in this regime; this implementation deliberately
+                raises instead, so an under-budgeted call never silently returns a
+                different estimator's values.
             RuntimeError: If the sampled coalitions do not contain the empty or grand coalition.
         """
         del kwargs
 
-        # 1. Sample coalitions
-        # use coalition sampler initialized in base class
+        # Fail fast before any (possibly expensive) game evaluation.
+        minimum_budget = self.n * self.interaction_factor
+        if budget < minimum_budget:
+            msg = (
+                "The budget is too small for OddSHAP. "
+                f"Received budget={budget}, but at least {minimum_budget} evaluations are required. "
+                "Please increase the budget."
+            )
+            raise ValueError(msg)
+
         self._sampler.sample(budget)
-
         coalitions = self._sampler.coalitions_matrix
-
-        # 2. Evaluate game on all sampled coalitions
         game_values = np.asarray(game(coalitions), dtype=float)
 
-        # 3. Extract empty and grand coalition values (CoalitionSampler ensures both are present)
+        # CoalitionSampler guarantees the empty and grand coalitions are present.
         empty_idx = self._sampler.empty_coalition_index
         if empty_idx is None:
             msg = "OddSHAP expected empty coalition to be present in the sampled coalitions"
@@ -160,19 +178,12 @@ class OddSHAP(Approximator):
 
         full_set_value = float(game_values[np.where(full_mask)[0][0]])
 
-        # 4. Compute how many higher-order interactions OddSHAP is allowed to consider later.
-        # The paper defines |T_odd| = ceil(m / eta); singletons are added separately.
-        n_candidate_interactions = max(0, math.ceil(budget / self.interaction_factor))
-
-        minimum_budget = self.n * self.interaction_factor
-        # Require enough samples to fit the OddSHAP odd-regression problem
-        if budget < minimum_budget:
-            msg = (
-                "The budget is too small for OddSHAP. "
-                f"Received budget={budget}, but at least {minimum_budget} evaluations are required. "
-                "Please increase the budget."
-            )
-            raise ValueError(msg)
+        # Candidate higher-order support size |T_odd| = ceil(m / eta) (paper Alg. 1);
+        # at full budget the regression is exact, so the support is not truncated.
+        if budget >= 2**self.n:
+            n_candidate_interactions = 2**self.n
+        else:
+            n_candidate_interactions = max(0, math.ceil(budget / self.interaction_factor))
 
         return self._approximate_via_odd_regression(
             budget=budget,
@@ -203,19 +214,13 @@ class OddSHAP(Approximator):
         5. solves the constrained odd regression
         6. transforms the fitted coefficients into Shapley values
         """
-        # 1. fit surrogate model
         surrogate_model = self._fit_surrogate_model(coalitions=coalitions, game_values=game_values)
-
-        # 2. detect odd higher-order interactions
         detected_interactions = self._select_odd_interactions(
             n_candidate_interactions=n_candidate_interactions,
             surrogate_model=surrogate_model,
         )
-
-        # 3. build active support
         self._build_support(detected_interactions)
 
-        # 4. build weighted regression objects
         X_tilde, y_tilde = self._build_weighted_system(
             coalitions=coalitions,
             game_values=game_values,
@@ -223,16 +228,12 @@ class OddSHAP(Approximator):
             full_set_value=full_set_value,
             drop_boundary_rows=True,
         )
-
-        # 5. solve constrained odd Fourier regression
         odd_fourier_coefficients = self._solve_constrained_regression(
             X_tilde=X_tilde,
             y_tilde=y_tilde,
             empty_set_value=empty_set_value,
             full_set_value=full_set_value,
         )
-
-        # 6. transform coefficients into Shapley values
         sv_values = self._transform_to_shapley(
             odd_fourier_coefficients,
             baseline_value=empty_set_value,
@@ -244,15 +245,15 @@ class OddSHAP(Approximator):
 
         return InteractionValues(
             values=sv_values,
-            index="SV",
+            index=self.approximation_index,
             max_order=1,
             min_order=0,
             n_players=self.n,
             interaction_lookup=interaction_lookup,
             baseline_value=float(empty_set_value),
-            estimated=not budget >= 2**self.n,
+            estimated=not (budget >= 2**self.n),
             estimation_budget=budget,
-            target_index="SV",
+            target_index=self.index,
         )
 
     def _fit_surrogate_model(
@@ -271,11 +272,13 @@ class OddSHAP(Approximator):
                 max_depth=10,
             )
         else:
+            # Keep the paper's depth-10 surrogate unless the user overrides it explicitly.
+            params = {"max_depth": 10, **self.tree_params}
             surrogate_model = lgb.LGBMRegressor(
                 verbose=-1,
                 n_jobs=1,
                 random_state=self._random_state,
-                **self.tree_params,
+                **params,
             )
 
         surrogate_model.fit(coalitions.astype(float), game_values)
@@ -354,8 +357,8 @@ class OddSHAP(Approximator):
             return []
 
         tree_models = convert_tree_model(surrogate_model)
-        # Reuse ProxySPEX's exact GBT->Fourier extraction as-is (no upstream changes).
-        # The instance is only a host for the extractor; it is never sampled or fit.
+        # The ProxySPEX instance is only a host for its exact GBT->Fourier extractor;
+        # it is never sampled or fit.
         fourier_extractor = ProxySPEX(
             n=self.n, proxy_model=surrogate_model, random_state=self._random_state
         )
