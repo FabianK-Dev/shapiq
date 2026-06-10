@@ -163,11 +163,27 @@ plt.show()
 
 # %% [markdown]
 # **Task 3 result.** OddSHAP attains rank 1 on every value function (average rank
-# 1.0), reproducing the paper's headline. The per-cell medians match the report's
-# Table 1 (e.g. Cancer ≈ 2.7e-6, NHANES ≈ 1.7e-6); the full six-value-function,
-# 30-instance table is in the report. The ground truth here is shapiq's own
-# interventional explainer, which agrees with the reference `shap` implementation
-# to ~1e-8, so no external dependency is needed.
+# 1.0), reproducing the paper's headline. The full-scale N=30 results — generated
+# on the LMU CIP cluster with exactly this methodology (via the gallery scripts in
+# `examples/approximators/`) — are committed in `cluster_results/`:
+#
+# * `table1_n30_all_classifier.csv` — all six value functions as XGBoost
+#   classifiers (paper Section-5 text): **OddSHAP rank-1 on 6/6, avg rank 1.00**
+#   (e.g. Cancer 1.79e-6, NHANES 1.37e-6, Estate 4.73e-9).
+# * `table1_n30_estate_crime_regressor.csv` — the regressor reading of the
+#   continuous Estate/Crime targets (paper Table-3 magnitudes): OddSHAP likewise
+#   rank-1 on 6/6 (Crime 1.40e-1, matching the paper's 9.9e-2 scale).
+# * `eta_ablation_n30_budget10000.csv` — Figure-4 ablation at the paper's fixed
+#   budget of 10,000 (U-shape; ratio explodes 17-93x at eta=2; Estate shows the
+#   "outlier improvement" the paper mentions, reaching ~1e-14).
+# * `fig2_budget_curves_n10_classifier.csv` — Figure-2 MSE-vs-budget curves.
+# * `distilbert_n30.csv` — Table-1 language column: RegressionMSR rank-1 and
+#   OddSHAP rank-2 within 2.8x, matching the paper's statement that OddSHAP and
+#   RegressionMSR perform on par for the low-dimensional value functions.
+#
+# The ground truth throughout is shapiq's own interventional explainer, which
+# agrees with the reference `shap` implementation to ~1e-8, so no external
+# dependency is needed.
 
 # %% [markdown]
 # ## Task 4 — cross-method benchmark on SOUM games

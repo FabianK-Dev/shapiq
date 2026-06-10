@@ -1,0 +1,8 @@
+estimator,median_mse,rank,n_instances,budget
+RegressionMSR,7.916e-06,1,30,100*d
+OddSHAP,2.252e-05,2,30,100*d
+kADDSHAP,4.805e-05,3,30,100*d
+SVARM,7.084e-05,4,30,100*d
+KernelSHAP,1.058e-04,5,30,100*d
+MSR,3.092e-04,6,30,100*d
+PermSamp,6.164e-04,7,30,100*d
