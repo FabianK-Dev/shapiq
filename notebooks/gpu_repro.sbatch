@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH -p NvidiaAll
-#SBATCH --time=25:00
+#SBATCH --time=4:00:00
 # One Slurm array task per instance. Submit with:
 #   sbatch -J vit16      -o .../gpu_out/vit16_%a.out      --export=ALL,VF=vit16      --array=0-29%15 notebooks/gpu_repro.sbatch
 #   sbatch -J distilbert -o .../gpu_out/distilbert_%a.out --export=ALL,VF=distilbert --array=0-29%15 notebooks/gpu_repro.sbatch
