@@ -246,3 +246,66 @@ plt.show()
 # accuracy among the sampling-based SV approximators, reproducing the paper. The
 # evaluation uses shapiq's own exact computers throughout, with no external
 # dependency.
+
+# %% [markdown]
+# ## Comparison with the paper: IQR intervals
+#
+# The paper's Table 3 (appendix) reports Q1/median/Q3 per estimator and value
+# function; it is transcribed in `cluster_results/paper_table3_reference.csv`.
+# Below, for four representative value functions, the paper's interquartile
+# interval (blue) is drawn next to ours (red, from the committed N=30 cluster
+# results). Estate and Crime use the regressor reading (the paper's Table-3
+# magnitudes); overlapping boxes mean our reproduction lands inside the paper's
+# spread. OddSHAP sits *below* the paper's interval on Cancer/Estate and inside
+# it on Crime; on NHANES every estimator is shifted down uniformly (a value-
+# function scale difference, not an estimator effect).
+
+# %%
+import csv as _csv
+import pathlib as _pl
+
+_CR = _pl.Path("cluster_results") if _pl.Path("cluster_results").is_dir() else _pl.Path("notebooks/cluster_results")
+
+def _read(p):
+    with open(p) as f:
+        return list(_csv.DictReader(f))
+
+_paper = {}
+for _r in _read(_CR / "paper_table3_reference.csv"):
+    for _vf in ["Estate", "Cancer", "NHANES", "Crime"]:
+        if _r[_vf]:
+            _paper.setdefault((_r["estimator"], _vf), {})[_r["statistic"]] = float(_r[_vf])
+
+_ours = {}
+for _fn, _vfs in [("table1_n30_all_classifier.csv", {"cancer": "Cancer", "nhanes": "NHANES"}),
+                  ("table1_n30_estate_crime_regressor.csv", {"realestate": "Estate", "crime": "Crime"})]:
+    for _r in _read(_CR / _fn):
+        if _r["value_function"] in _vfs:
+            _ours[(_r["estimator"], _vfs[_r["value_function"]])] = (
+                float(_r["q1"]), float(_r["median_mse"]), float(_r["q3"]))
+
+_PANELS = ["Cancer", "NHANES", "Estate", "Crime"]
+_EST = [("MSR", "MSR"), ("SVARM", "SVARM"), ("PermSamp", "PermutationSampling"),
+        ("RegressionMSR", "RegressionMSR"), ("OddSHAP", "OddSHAP")]
+fig, axes = plt.subplots(1, 4, figsize=(13.6, 3.9))
+for ax, vf in zip(axes, _PANELS):
+    for i, (ok, pk) in enumerate(_EST):
+        p = _paper[(pk, vf)]
+        ax.add_patch(plt.Rectangle((i - 0.30, p["q1"]), 0.26, p["q3"] - p["q1"],
+                                   facecolor="#2266AA", alpha=0.55))
+        ax.hlines(p["median"], i - 0.30, i - 0.04, color="#2266AA", lw=2.2)
+        q1, med, q3 = _ours[(ok, vf)]
+        ax.add_patch(plt.Rectangle((i + 0.04, q1), 0.26, q3 - q1,
+                                   facecolor="#CC3311", alpha=0.55))
+        ax.hlines(med, i + 0.04, i + 0.30, color="#CC3311", lw=2.2)
+    ax.set_yscale("log")
+    ax.set_xticks(range(len(_EST)))
+    ax.set_xticklabels([e[0] for e in _EST], rotation=35, ha="right", fontsize=8)
+    ax.set_title(f"{vf} {'(clf)' if vf in ('Cancer', 'NHANES') else '(reg)'}")
+    ax.grid(True, axis="y", alpha=0.3)
+axes[0].set_ylabel("MSE (log) — IQR box, median line")
+fig.legend([plt.Rectangle((0, 0), 1, 1, facecolor="#2266AA", alpha=0.55),
+            plt.Rectangle((0, 0), 1, 1, facecolor="#CC3311", alpha=0.55)],
+           ["paper (Table 3)", "ours (N=30)"], loc="upper center", ncol=2, frameon=False)
+fig.tight_layout(rect=(0, 0, 1, 0.93))
+plt.show()
