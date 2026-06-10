@@ -309,3 +309,110 @@ fig.legend([plt.Rectangle((0, 0), 1, 1, facecolor="#2266AA", alpha=0.55),
            ["paper (Table 3)", "ours (N=30)"], loc="upper center", ncol=2, frameon=False)
 fig.tight_layout(rect=(0, 0, 1, 0.93))
 plt.show()
+
+# %% [markdown]
+# ## Side-by-side with the paper: curves and intervals per value function
+#
+# For each value function, the paper's original Figure-2 panel (cropped from the
+# PDF, `cluster_results/paper_fig2_panels/`) is shown next to our budget curves
+# (from the committed `fig2_budget_curves_n10_classifier.csv`), with the IQR
+# interval comparison at the Table-1 budget below. This is the full
+# paper-vs-reproduction view for one dataset; change `_VF` to inspect another.
+
+# %%
+import matplotlib.image as _mpimg
+
+_VF = "cancer"  # one of: cancer, realestate, corrgroups60, independentlinear60, nhanes, crime
+_PNAME = {"cancer": "cancer", "realestate": "estate", "corrgroups60": "cg60",
+          "independentlinear60": "il60", "nhanes": "nhanes", "crime": "crime"}
+_VFL = {"cancer": "Cancer", "realestate": "Estate", "corrgroups60": "CG60",
+        "independentlinear60": "IL60", "nhanes": "NHANES", "crime": "Crime"}[_VF]
+
+_curves = {}
+for _r in _read(_CR / "fig2_budget_curves_n10_classifier.csv"):
+    if _r["value_function"] == _VF:
+        _curves.setdefault(_r["estimator"], {})[int(_r["budget"])] = float(_r["median_mse"])
+
+fig = plt.figure(figsize=(10.5, 7.0))
+gs = fig.add_gridspec(2, 2, height_ratios=[1.15, 1.0], hspace=0.32, wspace=0.18)
+axp = fig.add_subplot(gs[0, 0])
+axp.imshow(_mpimg.imread(_CR / "paper_fig2_panels" / f"paper_fig2_{_PNAME[_VF]}.png"))
+axp.axis("off"); axp.set_title("paper (Figure 2)", fontsize=10, color="#2266AA")
+axc = fig.add_subplot(gs[0, 1])
+for _e, _c in _curves.items():
+    _xs = sorted(_c); _ys = [_c[b] for b in _xs]
+    _st = dict(lw=2.4, color="#CC3311") if _e == "OddSHAP" else dict(lw=1.0, alpha=0.85)
+    axc.plot(_xs, _ys, marker="o", ms=2.5, label=_e, **_st)
+axc.set_xscale("log"); axc.set_yscale("log"); axc.grid(True, alpha=0.3)
+axc.set_xlabel("Budget (m)"); axc.set_ylabel("MSE (median)")
+axc.set_title("ours (N=10, classifier reading)", fontsize=10, color="#CC3311")
+axc.legend(fontsize=6.5, ncol=2)
+axi = fig.add_subplot(gs[1, :])
+for _i, (_ok, _pk) in enumerate(_EST):
+    _p = _paper.get((_pk, _VFL))
+    if _p is None:
+        continue
+    axi.add_patch(plt.Rectangle((_i - 0.28, _p["q1"]), 0.24, _p["q3"] - _p["q1"],
+                                facecolor="#2266AA", alpha=0.55))
+    axi.hlines(_p["median"], _i - 0.28, _i - 0.04, color="#2266AA", lw=2.4)
+    _o = _ours.get((_ok, _VFL))
+    if _o:
+        axi.add_patch(plt.Rectangle((_i + 0.04, _o[0]), 0.24, _o[2] - _o[0],
+                                    facecolor="#CC3311", alpha=0.55))
+        axi.hlines(_o[1], _i + 0.04, _i + 0.28, color="#CC3311", lw=2.4)
+axi.set_yscale("log"); axi.set_xticks(range(len(_EST)))
+axi.set_xticklabels([e[0] for e in _EST]); axi.grid(True, axis="y", alpha=0.3)
+axi.set_title("IQR at the Table-1 budget - blue: paper, red: ours")
+fig.suptitle(f"{_VFL} - paper vs reproduction", fontsize=13)
+plt.show()
+
+# %% [markdown]
+# ## Instance-level deep dive
+#
+# Beyond aggregate MSE, the pipeline below picks individual test instances and
+# compares the estimates feature by feature: exact interventional Shapley values
+# (black) vs OddSHAP (red) vs the strongest baseline RegressionMSR (blue), with
+# the per-feature absolute error on the right. This is the full production line
+# in one cell: train the model, compute the exact ground truth, run both
+# estimators, and visualize.
+
+# %%
+x, y = datasets.load_breast_cancer()
+x = np.asarray(x, dtype=float); y = np.asarray(y, dtype=float).astype(int)
+n = x.shape[1]
+x_tr, x_te, y_tr, _ = train_test_split(x, y, test_size=0.2, random_state=RANDOM_STATE)
+model = XGBClassifier(random_state=RANDOM_STATE, n_jobs=1).fit(x_tr, y_tr)
+rng = np.random.default_rng(RANDOM_STATE)
+bg = x_tr[rng.choice(x_tr.shape[0], size=min(50, x_tr.shape[0]), replace=False)]
+gt_explainer = InterventionalTreeExplainer(model=model, data=bg.astype(np.float32),
+                                           index="SV", max_order=1, class_index=1)
+budget = 100 * n
+
+fig, axes = plt.subplots(2, 2, figsize=(12.5, 7.6), gridspec_kw={"width_ratios": [1.6, 1.0]})
+for row, inst in enumerate([0, 1]):
+    t = x_te[inst]
+    gt = single_feature_values(gt_explainer.explain_function(t.astype(np.float32)), n)
+    game = InterventionalGame(model=model, reference_data=bg, target_instance=t, class_index=1)
+    est_odd = single_feature_values(OddSHAP(n=n, random_state=0).approximate(budget, game), n)
+    est_reg = single_feature_values(RegressionMSR(n=n, index="SV", random_state=0).approximate(budget, game), n)
+    top = np.argsort(-np.abs(gt))[:10][::-1]
+    ypos = np.arange(len(top)); h = 0.26
+    axL, axR = axes[row]
+    axL.barh(ypos + h, gt[top], h, color="#222222", label="exact")
+    axL.barh(ypos, est_odd[top], h, color="#CC3311", label="OddSHAP")
+    axL.barh(ypos - h, est_reg[top], h, color="#2266AA", label="RegressionMSR")
+    axL.set_yticks(ypos); axL.set_yticklabels([f"f{i}" for i in top], fontsize=8)
+    axL.axvline(0, color="k", lw=0.6); axL.grid(True, axis="x", alpha=0.3)
+    axL.set_title(f"Cancer test instance #{inst} - top-10 |exact| features", fontsize=10)
+    if row == 0:
+        axL.legend(fontsize=8, loc="lower right")
+    axR.barh(ypos + 0.18, np.abs(est_odd - gt)[top], 0.34, color="#CC3311")
+    axR.barh(ypos - 0.18, np.abs(est_reg - gt)[top], 0.34, color="#2266AA")
+    axR.set_yticks(ypos); axR.set_yticklabels([]); axR.set_xscale("log")
+    axR.grid(True, axis="x", alpha=0.3)
+    axR.set_title(f"per-feature |error| (MSE: Odd {np.mean((est_odd-gt)**2):.1e}, "
+                  f"RegMSR {np.mean((est_reg-gt)**2):.1e})", fontsize=9)
+    axR.set_xlabel("|estimate - exact| (log)")
+fig.suptitle("Instance-level comparison on Cancer (budget = 100*d)", fontsize=12)
+fig.tight_layout(rect=(0, 0, 1, 0.96))
+plt.show()
