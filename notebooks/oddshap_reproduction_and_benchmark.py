@@ -392,6 +392,68 @@ fig.suptitle(f"{_VFL} - paper vs reproduction (matched colors)", fontsize=13)
 plt.show()
 
 # %% [markdown]
+# ## GPU value functions — ViT16 (d=16) and DistilBERT (d=14)
+#
+# The paper's two deep-learning value functions are shapiq's own transformer
+# benchmarks: `ImageClassifier("vit_16_patches")` (16 ImageNet super-patches) and
+# `SentimentAnalysis` (DistilBERT sentiment on 14-token IMDB excerpts). Both require a
+# GPU, so the full N=30 reproduction — with **exact** Shapley ground truth from
+# `ExactComputer` (2^16 / 2^14 coalition evaluations per instance) — runs on the LMU
+# CIP GPU nodes via `gpu_repro.py` (Slurm array, one instance per task; aggregated by
+# `aggregate_gpu.py`). The results are committed in `cluster_results/{vit16,distilbert}_n30.csv`;
+# this notebook reads them and compares against the paper's Figure-2 data, exactly as
+# for the tabular value functions. The same library code (this branch's OddSHAP) is
+# used on the cluster and here.
+
+# %%
+for _gvf, _gd in [("vit16", 16), ("distilbert", 14)]:
+    _gcsv = _CR / f"{_gvf}_n30_exact.csv" if _gvf == "distilbert" else _CR / f"{_gvf}_n30.csv"
+    if not _gcsv.exists():
+        print(f"{_gvf}: {_gcsv.name} not present — run gpu_repro.py on the cluster first")
+        continue
+    _grows = sorted(_read(_gcsv), key=lambda r: float(r["median_mse"]))
+    print(f"\n{_gvf} (d={_gd}, exact GT, budget=100*d, N=30):")
+    for _rk, _r in enumerate(_grows, 1):
+        _tag = "   <- OddSHAP" if _r["estimator"] == "OddSHAP" else ""
+        print(f"  {_rk}. {_r['estimator']:14s} median MSE {float(_r['median_mse']):.3e}"
+              f"  [IQR {float(_r['q1']):.2e}, {float(_r['q3']):.2e}]{_tag}")
+
+# %%
+# Paper Fig-2 curve (left) vs our N=30 ranking at budget=100*d (right), per GPU VF.
+for _gvf, _gd in [("vit16", 16), ("distilbert", 14)]:
+    _gcsv = _CR / f"{_gvf}_n30_exact.csv" if _gvf == "distilbert" else _CR / f"{_gvf}_n30.csv"
+    if not _gcsv.exists():
+        continue
+    _go = {r["estimator"]: (float(r["q1"]), float(r["median_mse"]), float(r["q3"]))
+           for r in _read(_gcsv)}
+    _gp = {}
+    for _r in _read(_CR / "paper_fig2_extracted.csv"):
+        if _r["value_function"] == _gvf:
+            _gp.setdefault(_r["method"], []).append((float(_r["budget"]), float(_r["mse"])))
+    fig, (axp, axo) = plt.subplots(1, 2, figsize=(11.0, 3.9))
+    for _m, _pts in sorted(_gp.items()):
+        _pts = sorted(_pts)
+        axp.plot([q[0] for q in _pts], [q[1] for q in _pts], marker="o", ms=2.6,
+                 color=PCOL.get(_m, (0.5, 0.5, 0.5)),
+                 lw=2.2 if _m == "OddSHAP" else 1.2, label=_m)
+    axp.set_xscale("log"); axp.set_yscale("log"); axp.grid(True, alpha=0.3)
+    axp.set_title(f"{_gvf} — paper Fig. 2 (extracted)", fontsize=10)
+    axp.set_xlabel("Budget (m)"); axp.set_ylabel("MSE (median)"); axp.legend(fontsize=6, ncol=2)
+    _order = sorted(_go, key=lambda e: _go[e][1])
+    for _i, _e in enumerate(_order):
+        _q1, _md, _q3 = _go[_e]
+        axo.add_patch(plt.Rectangle((_i - 0.3, _q1), 0.6, max(_q3 - _q1, _md * 1e-3),
+                                    facecolor=OURCOL.get(_e, (0.5, 0.5, 0.5)),
+                                    alpha=0.9, edgecolor="k", lw=0.4))
+        axo.hlines(_md, _i - 0.3, _i + 0.3, color="k", lw=2.0)
+    axo.set_yscale("log"); axo.set_xticks(range(len(_order)))
+    axo.set_xticklabels(_order, rotation=40, ha="right", fontsize=8)
+    axo.set_title(f"{_gvf} — ours N=30 ranking @ budget=100*d", fontsize=10)
+    axo.grid(True, axis="y", alpha=0.3)
+    fig.suptitle(f"{_gvf} (d={_gd}) — paper vs reproduction (OddSHAP highlighted)", fontsize=12)
+    plt.tight_layout(); plt.show()
+
+# %% [markdown]
 # ## Instance-level deep dive
 #
 # Beyond aggregate MSE, the pipeline below picks individual test instances and
