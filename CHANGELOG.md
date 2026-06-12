@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Bugfix
+
+- Solves the Vandermonde interpolation systems of the polynomial TreeSHAP machinery (`TreeSHAPIQ`, `LinearTreeSHAP`) exactly at every depth, replacing the explicit float64 inverse:
+  - an O(n^2) Björck-Pereyra recursion in scaled-integer arithmetic with a bitwise convergence certificate returns the float64 rounding of the exact rational solution for any grid of distinct nodes,
+  - this **fixes a pre-existing silent-wrong-answer bug**: the previous inversion drifted at the ~1e-7 level from interpolation degree ~20, returned silently wrong values from ~32, and crashed with an unexplained `LinAlgError` at ~60+; the exact solves carry no conditioning error at any degree,
+  - beyond the float64 representation limit of the monomial-basis pipeline (interpolation degree ~29 for `LinearTreeSHAP` and ~25 for `TreeSHAPIQ` on the default grids, where the exact coefficients exceed ~3e10 and downstream double-precision evaluation provably cancels more than ~1% of the result) construction raises an explanatory `RepresentationLimitError` (a `ValueError`) instead of returning silently wrong values. [#545](https://github.com/mmschlk/shapiq/issues/545)
+
+### Changed
+
+- Models whose interpolation degree exceeds the float64 representation limit (~29 for `LinearTreeSHAP`, ~25 for `TreeSHAPIQ`, on the default grids) now raise `RepresentationLimitError` (a `ValueError`) at construction; previously they returned silently wrong values (degrees ~32-59) or crashed with `LinAlgError` (~60+). The degree depends on the configuration: the tree depth for `LinearTreeSHAP`, `min(depth, features in the tree)` for `TreeSHAPIQ` with SV/SII/k-SII, and the number of features in the tree for STII/FSII/BII. For order-1 SV/SII configurations `TreeExplainer` re-routes the affected trees to `TreeSHAPIQ` when its feature-bounded degree still fits; other configurations propagate the error.
+- Shapley values for interpolation degrees above ~20 may shift at the ~1e-7 level relative to previous releases: the coefficients are now the correctly rounded exact solutions rather than the output of a float64 inverse. Below the representation limit the remaining end-to-end completeness error is bounded by the downstream float64 evaluation (about `max|N| * 1e-13`, i.e. up to ~1e-4 at degree 24 and ~1e-2 at degree 28 on adversarial chain trees).
+
 ## v1.5.1 (2026-05-30)
 
 ### Bugfix
