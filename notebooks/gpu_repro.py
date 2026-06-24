@@ -154,7 +154,7 @@ def distilbert_builder():
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--vf", required=True, choices=["vit16", "distilbert"])
-    ap.add_argument("--experiment", choices=["all", "table1", "fig2", "eta"], default="all")
+    ap.add_argument("--experiment", choices=["all", "table1", "fig2", "eta", "table1eta"], default="all")
     ap.add_argument("--start", type=int, default=0)
     ap.add_argument("--end", type=int, default=N_INST)
     ap.add_argument("--smoke", action="store_true")
@@ -186,7 +186,7 @@ def main():
         gt = singles(ExactComputer(game=game, n_players=n)(index="SV"), n)
 
         # Table 1 — budget = 100 * d
-        if exp in ("all", "table1"):
+        if exp in ("all", "table1", "table1eta"):
             budget = max(n + 1, 100 * n)
             for e in EST:
                 iv = make(e, n).approximate(budget, game)
@@ -207,7 +207,7 @@ def main():
                     print("PARTIAL_F2 %s %s %d %d %.6e" % (args.vf, e, i, b, mse), flush=True)
 
         # Figure 4 — eta ablation at fixed budget 10,000
-        if exp in ("all", "eta"):
+        if exp in ("all", "eta", "table1eta"):
             for et in ETAS:
                 iv = OddSHAP(n=n, random_state=0, interaction_factor=et).approximate(ETA_BUDGET, game)
                 mse = float(np.mean((singles(iv, n) - gt) ** 2))

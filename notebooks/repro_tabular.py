@@ -44,6 +44,17 @@ from shapiq.tree.interventional.explainer import InterventionalTreeExplainer
 from shapiq_games.benchmark.interventionaltreeshapiq_xai import InterventionalGame
 
 RANDOM_STATE = 40
+
+def _warm_dispatch():
+    """Register the lightgbm tree converter in the main process before parallel workers."""
+    try:
+        from lightgbm import LGBMRegressor
+        from shapiq.tree.conversion import convert_tree_model
+        r = np.random.default_rng(0)
+        convert_tree_model(LGBMRegressor(n_estimators=2, max_depth=2, verbose=-1).fit(r.random((30, 3)), r.random(30)))
+    except ImportError:
+        pass
+
 N_BACKGROUND = 50
 ESTIMATORS = ["MSR", "SVARM", "PermSamp", "KernelSHAP", "kADDSHAP", "RegressionMSR", "OddSHAP"]
 
@@ -107,12 +118,22 @@ def _prepare(loader, kind: str, *, classifier: bool):
 # --------------------------------------------------------------------------- #
 # Table 1
 # --------------------------------------------------------------------------- #
-def _t1_instance(target, gt, model, bg, n, is_clf, budget):
-    truth = sfv(gt.explain_function(target.astype(np.float32)), n)
+def _ground_truths(gt, x_te, n, n_use):
+    """Exact interventional Shapley values, serial in the main process (the tree
+    explainer is not safe to share across joblib workers)."""
+    return [sfv(gt.explain_function(x_te[i].astype(np.float32)), n) for i in range(n_use)]
+
+
+def _t1_instance(target, truth, model, bg, n, is_clf, budget):
     game = InterventionalGame(model=model, reference_data=bg, target_instance=target,
                               class_index=1 if is_clf else None)
-    return {est: float(np.mean((sfv(make_estimator(est, n).approximate(budget, game), n) - truth) ** 2))
-            for est in ESTIMATORS}
+    out = {}
+    for est in ESTIMATORS:
+        try:
+            out[est] = float(np.mean((sfv(make_estimator(est, n).approximate(budget, game), n) - truth) ** 2))
+        except Exception:  # noqa: BLE001
+            out[est] = float("inf")
+    return out
 
 
 def run_table1(n_instances: int, jobs: int):
@@ -125,8 +146,9 @@ def run_table1(n_instances: int, jobs: int):
             model, bg, gt, n, x_te, is_clf = _prepare(loader, kind, classifier=classifier)
             budget = max(n + 1, 100 * n)
             n_use = min(n_instances, x_te.shape[0])
-            per = Parallel(n_jobs=jobs)(
-                delayed(_t1_instance)(x_te[i], gt, model, bg, n, is_clf, budget) for i in range(n_use)
+            truths = _ground_truths(gt, x_te, n, n_use)
+            per = Parallel(n_jobs=jobs, backend="loky")(
+                delayed(_t1_instance)(x_te[i], truths[i], model, bg, n, is_clf, budget) for i in range(n_use)
             )
             for est in ESTIMATORS:
                 e = np.array([p[est] for p in per])
@@ -143,8 +165,7 @@ def run_table1(n_instances: int, jobs: int):
 # --------------------------------------------------------------------------- #
 # Figure 2 — budget curves
 # --------------------------------------------------------------------------- #
-def _f2_instance(target, gt, model, bg, n, is_clf, budgets):
-    truth = sfv(gt.explain_function(target.astype(np.float32)), n)
+def _f2_instance(target, truth, model, bg, n, is_clf, budgets):
     game = InterventionalGame(model=model, reference_data=bg, target_instance=target,
                               class_index=1 if is_clf else None)
     out: dict[int, dict[str, float]] = {}
@@ -170,8 +191,9 @@ def run_fig2(n_instances: int, jobs: int):
             hi = min(2 ** n, 20_000)
             budgets = sorted({int(round(b)) for b in np.logspace(np.log10(n + 1), np.log10(hi), 10)})
             n_use = min(n_instances, x_te.shape[0])
-            per = Parallel(n_jobs=jobs)(
-                delayed(_f2_instance)(x_te[i], gt, model, bg, n, is_clf, budgets) for i in range(n_use)
+            truths = _ground_truths(gt, x_te, n, n_use)
+            per = Parallel(n_jobs=jobs, backend="loky")(
+                delayed(_f2_instance)(x_te[i], truths[i], model, bg, n, is_clf, budgets) for i in range(n_use)
             )
             for est in ESTIMATORS:
                 for b in budgets:
@@ -192,8 +214,7 @@ ETAS = [50, 10, 5, 2]
 ETA_BUDGET = 10_000
 
 
-def _eta_instance(target, gt, model, bg, n, is_clf):
-    truth = sfv(gt.explain_function(target.astype(np.float32)), n)
+def _eta_instance(target, truth, model, bg, n, is_clf):
     game = InterventionalGame(model=model, reference_data=bg, target_instance=target,
                               class_index=1 if is_clf else None)
     out = {}
@@ -220,8 +241,9 @@ def run_eta(n_instances: int, jobs: int):
         classifier = kind != "native_binary"
         model, bg, gt, n, x_te, is_clf = _prepare(loader, kind, classifier=classifier)
         n_use = min(n_instances, x_te.shape[0])
-        per = Parallel(n_jobs=jobs)(
-            delayed(_eta_instance)(x_te[i], gt, model, bg, n, is_clf) for i in range(n_use)
+        truths = _ground_truths(gt, x_te, n, n_use)
+        per = Parallel(n_jobs=jobs, backend="loky")(
+            delayed(_eta_instance)(x_te[i], truths[i], model, bg, n, is_clf) for i in range(n_use)
         )
         base = float(np.median([p["base"] for p in per]))
         rows.append((vf, "base", "", n_use, base, 1.0))
@@ -248,7 +270,12 @@ def main():
     ap.add_argument("--experiment", choices=["table1", "fig2", "eta", "all"], default="all")
     ap.add_argument("--instances", type=int, default=30, help="N per VF (table1/eta); fig2 caps at this too")
     ap.add_argument("--jobs", type=int, default=-1, help="joblib n_jobs (-1 = all cores)")
+    ap.add_argument("--vf", default=None, help="restrict to one value function (array sharding)")
     a = ap.parse_args()
+    if a.vf:
+        global VFS
+        VFS = [v for v in VFS if v[0] == a.vf]
+    _warm_dispatch()
     if a.experiment in ("table1", "all"):
         run_table1(a.instances, a.jobs)
     if a.experiment in ("fig2", "all"):
