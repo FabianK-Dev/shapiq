@@ -43,6 +43,11 @@ N_INST = 30
 REPO = os.path.expanduser("~/oddshap_repro")
 EXCERPT_TOKENS = 14  # paper Section 5 DistilBERT excerpt length
 
+# paper Section 5.3 / Figure 4: fixed budget 10,000, eta in {50,10,5,2}; the deep-learning
+# value functions (ViT16, DistilBERT) are part of Figure 4's 7-value-function set.
+ETAS = [50, 10, 5, 2]
+ETA_BUDGET = 10_000
+
 # Fixed IMDB-style sentiment review excerpts (truncated to EXCERPT_TOKENS tokens
 # below). Hard-coded so the DistilBERT reproduction is self-contained and exactly
 # reproducible without a `datasets` download. Mixed positive/negative.
@@ -149,6 +154,7 @@ def distilbert_builder():
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--vf", required=True, choices=["vit16", "distilbert"])
+    ap.add_argument("--experiment", choices=["all", "table1", "fig2", "eta"], default="all")
     ap.add_argument("--start", type=int, default=0)
     ap.add_argument("--end", type=int, default=N_INST)
     ap.add_argument("--smoke", action="store_true")
@@ -172,14 +178,47 @@ def main():
         )
         return
 
+    exp = args.experiment
     for i in range(max(0, args.start), min(args.end, N_INST)):
         game, n = build(i)
+        # Exact Shapley ground truth (2**n evaluations) — computed ONCE per instance
+        # and reused across Table 1, Figure 2 and Figure 4.
         gt = singles(ExactComputer(game=game, n_players=n)(index="SV"), n)
-        budget = max(n + 1, 100 * n)
-        for e in EST:
-            iv = make(e, n).approximate(budget, game)
+
+        # Table 1 — budget = 100 * d
+        if exp in ("all", "table1"):
+            budget = max(n + 1, 100 * n)
+            for e in EST:
+                iv = make(e, n).approximate(budget, game)
+                mse = float(np.mean((singles(iv, n) - gt) ** 2))
+                print("PARTIAL %s %s %d %.6e" % (args.vf, e, i, mse), flush=True)
+
+        # Figure 2 — budget sweep (10 log-spaced points, d+1 .. min(2^d, 20000))
+        if exp in ("all", "fig2"):
+            hi = min(2 ** n, 20_000)
+            budgets = sorted({int(round(b)) for b in np.logspace(np.log10(n + 1), np.log10(hi), 10)})
+            for b in budgets:
+                for e in EST:
+                    try:
+                        iv = make(e, n).approximate(b, game)
+                    except (ValueError, RuntimeError):
+                        continue
+                    mse = float(np.mean((singles(iv, n) - gt) ** 2))
+                    print("PARTIAL_F2 %s %s %d %d %.6e" % (args.vf, e, i, b, mse), flush=True)
+
+        # Figure 4 — eta ablation at fixed budget 10,000
+        if exp in ("all", "eta"):
+            for et in ETAS:
+                iv = OddSHAP(n=n, random_state=0, interaction_factor=et).approximate(ETA_BUDGET, game)
+                mse = float(np.mean((singles(iv, n) - gt) ** 2))
+                print("PARTIAL_ETA %s %s %d %.6e" % (args.vf, et, i, mse), flush=True)
+            # interaction-free baseline: empty higher-order support (matches the tabular path)
+            base_est = OddSHAP(n=n, random_state=0, interaction_factor=10)
+            base_est._select_odd_interactions = lambda **kw: []  # noqa: SLF001
+            iv = base_est.approximate(ETA_BUDGET, game)
             mse = float(np.mean((singles(iv, n) - gt) ** 2))
-            print("PARTIAL %s %s %d %.6e" % (args.vf, e, i, mse), flush=True)
+            print("PARTIAL_ETA %s base %d %.6e" % (args.vf, i, mse), flush=True)
+
     print("DONE_SHARD %s %d %d" % (args.vf, args.start, args.end), flush=True)
 
 
