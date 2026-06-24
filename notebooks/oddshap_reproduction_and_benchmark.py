@@ -392,6 +392,56 @@ fig.suptitle(f"{_VFL} - paper vs reproduction (matched colors)", fontsize=13)
 plt.show()
 
 # %% [markdown]
+# ## Interaction-sparsity ablation — reproducing the paper's Figure 4
+#
+# The paper's Figure 4 (Section 5.3, "Ablation of Interaction Sparsity") sweeps the
+# interaction factor `eta`, which controls the screened odd-interaction support size
+# `|T_odd| = ceil(m / eta) - d` at a fixed budget of `m = 10,000`. The y-axis is the
+# **MSE ratio** against the interaction-free baseline (OddSHAP with an empty
+# higher-order odd support, i.e. singletons only): a ratio `< 1` means the screened
+# higher-order interactions *help*. The paper's key finding — the U-shape — is the
+# overfitting blow-up at `eta = 2`, where too many noisy interactions are admitted
+# relative to the budget. The N=30 results below were computed on the cluster and are
+# committed as `cluster_results/eta_ablation_n30_budget10000.csv`.
+
+# %%
+_eta_rows = _read(_CR / "eta_ablation_n30_budget10000.csv")
+_eta_by_vf: dict[str, list[tuple[int, float]]] = {}
+for _r in _eta_rows:
+    if _r["eta"] == "base":
+        continue
+    _eta_by_vf.setdefault(_r["value_function"], []).append(
+        (int(_r["eta"]), float(_r["mse_ratio_vs_interaction_free"]))
+    )
+
+_ETA_LABEL = {"cancer": "Cancer", "realestate": "Estate", "corrgroups60": "CG60",
+              "independentlinear60": "IL60", "nhanes": "NHANES", "crime": "Crime"}
+
+fig, ax = plt.subplots(figsize=(7, 4))
+for _vfn, _pts in _eta_by_vf.items():
+    _pts = sorted(_pts, key=lambda t: t[0])  # ascending eta
+    _etas = [e for e, _ in _pts]
+    _n_int = [int(np.ceil(10000 / e)) for e in _etas]  # |T_odd| = ceil(m/eta)
+    _ratios = [r for _, r in _pts]
+    ax.plot(_n_int, _ratios, marker="o", label=_ETA_LABEL.get(_vfn, _vfn))
+ax.axhline(1.0, color="k", lw=0.8, ls="--", label="interaction-free baseline")
+ax.set_xscale("log")
+ax.set_yscale("log")
+ax.set_xlabel(r"number of odd interactions $\lceil m/\eta \rceil$ (larger = smaller $\eta$)")
+ax.set_ylabel("MSE ratio (vs interaction-free baseline)")
+ax.set_title("OddSHAP interaction-sparsity ablation (paper Fig. 4, budget = 10,000, N=30)")
+ax.legend(fontsize=8, ncol=2)
+plt.tight_layout()
+plt.show()
+
+# %% [markdown]
+# The reproduction matches the paper's qualitative finding: screening helps (ratio
+# `< 1`) for moderate `eta` (50/10/5), with the strongest gains on the low-dimensional
+# real-data functions (Estate drops to ~1e-14, i.e. near-exact recovery), and every
+# value function blows up at `eta = 2` (ratio 17x–93x) — the overfitting regime where
+# the screened support outgrows what the budget can fit.
+
+# %% [markdown]
 # ## GPU value functions — ViT16 (d=16) and DistilBERT (d=14)
 #
 # The paper's two deep-learning value functions are shapiq's own transformer
