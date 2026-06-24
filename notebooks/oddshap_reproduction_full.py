@@ -170,8 +170,17 @@ def _prepare_tabular(loader, kind: str, *, classifier: bool):
 # (Table-3 magnitudes) readings the paper is ambiguous about.
 
 # %%
-def _t1_instance(target, gt, model, bg, n, is_clf, budget):
-    truth = sfv(gt.explain_function(target.astype(np.float32)), n)
+def _ground_truths(gt, x_te, n, n_use):
+    """Exact interventional Shapley values, computed serially in the main process.
+
+    The tree explainer holds C-backed state that is not safe to share across joblib
+    workers, so the ground truth is precomputed here and only picklable arrays
+    (target + truth) are dispatched to the parallel estimator workers below.
+    """
+    return [sfv(gt.explain_function(x_te[i].astype(np.float32)), n) for i in range(n_use)]
+
+
+def _t1_instance(target, truth, model, bg, n, is_clf, budget):
     game = InterventionalGame(model=model, reference_data=bg, target_instance=target,
                               class_index=1 if is_clf else None)
     return {est: safe_mse(est, n, budget, game, truth) for est in ESTIMATORS}
@@ -184,8 +193,9 @@ for vf, loader, kind in TABULAR_VFS:
         model, bg, gt, n, x_te, is_clf = _prepare_tabular(loader, kind, classifier=classifier)
         budget = max(n + 1, 100 * n)
         n_use = min(N_INSTANCES, x_te.shape[0])
+        truths = _ground_truths(gt, x_te, n, n_use)
         per = Parallel(n_jobs=N_JOBS, backend=JOBLIB_BACKEND)(
-            delayed(_t1_instance)(x_te[i], gt, model, bg, n, is_clf, budget) for i in range(n_use))
+            delayed(_t1_instance)(x_te[i], truths[i], model, bg, n, is_clf, budget) for i in range(n_use))
         table1[(vf, cfg)] = {est: (
             float(np.median([p[est] for p in per])),
             float(np.quantile([p[est] for p in per], 0.25)),
@@ -197,8 +207,7 @@ for vf, loader, kind in TABULAR_VFS:
 # ## 2 — Figure 2: MSE-vs-budget curves (computed live, parallel)
 
 # %%
-def _f2_instance(target, gt, model, bg, n, is_clf, budgets):
-    truth = sfv(gt.explain_function(target.astype(np.float32)), n)
+def _f2_instance(target, truth, model, bg, n, is_clf, budgets):
     game = InterventionalGame(model=model, reference_data=bg, target_instance=target,
                               class_index=1 if is_clf else None)
     out = {}
@@ -218,8 +227,9 @@ for vf, loader, kind in TABULAR_VFS:
     hi = min(2 ** n, 20_000)
     budgets = sorted({int(round(b)) for b in np.logspace(np.log10(n + 1), np.log10(hi), 10)})
     n_use = min(10 if FULL_SCALE else N_INSTANCES, x_te.shape[0])
+    truths = _ground_truths(gt, x_te, n, n_use)
     per = Parallel(n_jobs=N_JOBS, backend=JOBLIB_BACKEND)(
-        delayed(_f2_instance)(x_te[i], gt, model, bg, n, is_clf, budgets) for i in range(n_use))
+        delayed(_f2_instance)(x_te[i], truths[i], model, bg, n, is_clf, budgets) for i in range(n_use))
     fig2[vf] = {est: {b: float(np.median([p[b][est] for p in per if est in p[b]]))
                       for b in budgets if any(est in p[b] for p in per)} for est in ESTIMATORS}
     print(f"fig2 {vf:20s} d={n:3d} N={n_use} done", flush=True)
@@ -243,8 +253,7 @@ ax.legend(fontsize=7); fig.tight_layout(); plt.show()
 # MSE ratio normalizes by the interaction-free baseline (empty higher-order support).
 
 # %%
-def _eta_instance(target, gt, model, bg, n, is_clf):
-    truth = sfv(gt.explain_function(target.astype(np.float32)), n)
+def _eta_instance(target, truth, model, bg, n, is_clf):
     game = InterventionalGame(model=model, reference_data=bg, target_instance=target,
                               class_index=1 if is_clf else None)
     out = {}
@@ -270,8 +279,9 @@ for vf, loader, kind in TABULAR_VFS:
         continue  # paper Figure 4 excludes Estate
     model, bg, gt, n, x_te, is_clf = _prepare_tabular(loader, kind, classifier=(kind != "native_binary"))
     n_use = min(N_INSTANCES, x_te.shape[0])
+    truths = _ground_truths(gt, x_te, n, n_use)
     per = Parallel(n_jobs=N_JOBS, backend=JOBLIB_BACKEND)(
-        delayed(_eta_instance)(x_te[i], gt, model, bg, n, is_clf) for i in range(n_use))
+        delayed(_eta_instance)(x_te[i], truths[i], model, bg, n, is_clf) for i in range(n_use))
     base = float(np.median([p["base"] for p in per]))
     eta_ratios[vf] = [float(np.median([p[e] for p in per])) / base for e in ETAS]
     print(f"eta {vf:20s} d={n:3d} N={n_use} ratios={['%.3f' % r for r in eta_ratios[vf]]}", flush=True)
