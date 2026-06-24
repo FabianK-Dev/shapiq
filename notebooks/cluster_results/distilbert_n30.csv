@@ -1,8 +1,8 @@
-estimator,median_mse,rank,n_instances,budget
-RegressionMSR,7.916e-06,1,30,100*d
-OddSHAP,2.252e-05,2,30,100*d
-kADDSHAP,4.805e-05,3,30,100*d
-SVARM,7.084e-05,4,30,100*d
-KernelSHAP,1.058e-04,5,30,100*d
-MSR,3.092e-04,6,30,100*d
-PermSamp,6.164e-04,7,30,100*d
+value_function,estimator,config,n_instances,median_mse,q1,q3
+distilbert,RegressionMSR,exact_gt,30,3.195581e-05,1.543075e-05,8.281960000000001e-05
+distilbert,OddSHAP,exact_gt,30,5.2097225e-05,3.0990909999999996e-05,0.0001116508
+distilbert,kADDSHAP,exact_gt,30,6.482566000000001e-05,4.26658475e-05,0.000111727425
+distilbert,KernelSHAP,exact_gt,30,0.00013656375,6.63457325e-05,0.000477124825
+distilbert,SVARM,exact_gt,30,0.0001696194,2.4311455e-05,0.000370527675
+distilbert,MSR,exact_gt,30,0.00041520295,0.000208420825,0.00173156525
+distilbert,PermSamp,exact_gt,30,0.00102208485,0.0003499293,0.00122626

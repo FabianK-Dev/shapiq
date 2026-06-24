@@ -1,0 +1,6 @@
+value_function,eta,n_interactions,n_instances,median_mse,mse_ratio_vs_interaction_free
+distilbert,base,,30,3.0644345e-06,1.0
+distilbert,50,200,30,1.00140035e-06,0.32678145021536603
+distilbert,10,1000,30,6.292941e-07,0.20535407103659747
+distilbert,5,2000,30,7.517185e-07,0.2453041499173828
+distilbert,2,5000,30,0.00038640855,126.09456981377804
