@@ -136,6 +136,23 @@ if not FULL_SCALE:
 
 print(f"FULL_SCALE={FULL_SCALE}  N_INSTANCES={N_INSTANCES}  N_JOBS={N_JOBS}  RUN_GPU_VF={RUN_GPU_VF}")
 
+# Warm the lazy tree-conversion dispatch in the main thread: OddSHAP's surrogate is a
+# LightGBM model, and the converter registers itself on first use via a lazy import that
+# is not safe to trigger concurrently from parallel workers (it raced to a one-off KeyError).
+# Converting a tiny fitted surrogate here registers the handler before the parallel sections.
+try:
+    from lightgbm import LGBMRegressor
+
+    from shapiq.tree.conversion import convert_tree_model
+
+    _warm_rng = np.random.default_rng(0)
+    _warm_model = LGBMRegressor(n_estimators=2, max_depth=2, verbose=-1).fit(
+        _warm_rng.random((30, 3)), _warm_rng.random(30))
+    convert_tree_model(_warm_model)
+    print("tree-conversion dispatch warmed (lightgbm handler registered)")
+except ImportError:
+    print("lightgbm not installed — OddSHAP will fall back to a DecisionTree surrogate")
+
 
 def _prepare_tabular(loader, kind: str, *, classifier: bool):
     x, y = loader()
