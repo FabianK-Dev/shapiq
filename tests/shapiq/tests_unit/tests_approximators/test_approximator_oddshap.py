@@ -32,16 +32,13 @@ import numpy as np
 import pytest
 from scipy.special import binom
 
+import shapiq
 import shapiq.approximator as approximator_module
 from shapiq.approximator.regression import OddSHAP
 from shapiq.game_theory.exact import ExactComputer
 from shapiq.interaction_values import InteractionValues
 from shapiq_games.synthetic import SOUM, DummyGame
 from tests.shapiq.markers import skip_if_no_lightgbm
-
-# OddSHAP's surrogate requires lightgbm (optional 'proxy' extra); skip the whole
-# module in environments without it, like the other LightGBM-dependent suites.
-pytestmark = [skip_if_no_lightgbm]
 
 # -----------------------------------------------------------------------------
 # Initialization
@@ -57,7 +54,6 @@ def test_init_defaults(n):
     assert approx.top_order is False
     assert approx.index == "SV"
     assert approx.interaction_factor == 10
-    assert approx.odd_only is True
 
 
 def test_init_custom_kwargs():
@@ -65,21 +61,13 @@ def test_init_custom_kwargs():
     custom_weights[1:8] = 1.0 / 7  # n=8, valid weights summing to 1
     approx = OddSHAP(
         n=8,
-        pairing_trick=False,
         interaction_factor=5,
         sampling_weights=custom_weights,
         random_state=123,
         tree_params={"max_depth": 4},
     )
     assert approx.interaction_factor == 5
-    assert approx.odd_only is True  # implementation pins this to True
     assert approx.tree_params == {"max_depth": 4}
-
-
-def test_init_rejects_odd_only_false():
-    """The current implementation supports only the odd_only=True branch."""
-    with pytest.raises(ValueError, match="only odd_only=True"):
-        OddSHAP(n=8, odd_only=False)
 
 
 @pytest.mark.parametrize("bad_eta", [0, -1])
@@ -89,16 +77,24 @@ def test_init_rejects_nonpositive_interaction_factor(bad_eta):
         OddSHAP(n=8, interaction_factor=bad_eta)
 
 
-def test_init_requires_lightgbm(monkeypatch):
+def test_init_warns_without_lightgbm(monkeypatch):
     monkeypatch.setitem(sys.modules, "lightgbm", None)
+    with pytest.warns(UserWarning, match="LightGBM is not installed"):
+        approx = OddSHAP(n=8)
+    from sklearn.tree import DecisionTreeRegressor
 
-    with pytest.raises(ImportError, match="The 'lightgbm' package is required for OddSHAP"):
-        OddSHAP(n=8)
+    assert isinstance(approx._surrogate_template, DecisionTreeRegressor)
 
 
 def test_public_approximator_exports_include_oddshap():
     assert "OddSHAP" in approximator_module.__all__
     assert OddSHAP in approximator_module.SV_APPROXIMATORS
+
+
+def test_top_level_export_includes_oddshap():
+    """OddSHAP is re-exported at the package top level like its sibling approximators."""
+    assert shapiq.OddSHAP is OddSHAP
+    assert "OddSHAP" in shapiq.__all__
 
 
 # -----------------------------------------------------------------------------
@@ -283,6 +279,26 @@ def test_low_budget_raises_value_error():
         approx.approximate(budget, game)
 
 
+def test_full_enumeration_bypasses_minimum_budget():
+    """budget >= 2**n is accepted even when 2**n < n * interaction_factor (small n)."""
+    n = 4  # 2**4 = 16 < 40 = n * eta
+    game = DummyGame(n=n, interaction=(1, 2))
+    iv = OddSHAP(n=n, random_state=0).approximate(2**n, game)
+    assert isinstance(iv, InteractionValues)
+    v_full = float(game(np.ones((1, n), dtype=bool))[0])
+    v_empty = float(game(np.zeros((1, n), dtype=bool))[0])
+    assert np.sum(iv.values[1:]) == pytest.approx(v_full - v_empty, abs=1e-6)
+
+
+def test_small_budget_below_full_enumeration_still_raises():
+    """Below both the eta-based minimum and 2**n the ValueError is kept, and the
+    message reports the effective minimum (16 = 2**4, not n * eta = 40)."""
+    n = 4
+    game = DummyGame(n=n, interaction=(1, 2))
+    with pytest.raises(ValueError, match="at least 16 evaluations"):
+        OddSHAP(n=n, random_state=0).approximate(2**n - 1, game)
+
+
 def test_boundary_budget_uses_paper_candidate_count(monkeypatch):
     """At budget = n * interaction_factor (the minimum permitted),
     `_select_odd_interactions` should be called with the paper's
@@ -308,7 +324,9 @@ def test_boundary_budget_uses_paper_candidate_count(monkeypatch):
 
     approx.approximate(budget, additive_game)
 
-    assert captured["n_candidate_interactions"] == math.ceil(budget / approx.interaction_factor)
+    assert captured["n_candidate_interactions"] == max(
+        0, math.ceil(budget / approx.interaction_factor) - n
+    )
 
 
 def test_candidate_interaction_count_matches_paper(monkeypatch):
@@ -332,7 +350,9 @@ def test_candidate_interaction_count_matches_paper(monkeypatch):
 
     approx.approximate(budget, additive_game)
 
-    assert captured["n_candidate_interactions"] == math.ceil(budget / approx.interaction_factor)
+    assert captured["n_candidate_interactions"] == max(
+        0, math.ceil(budget / approx.interaction_factor) - n
+    )
 
 
 # -----------------------------------------------------------------------------
@@ -460,19 +480,18 @@ def test_select_odd_interactions_returns_full_support_for_large_k():
 def test_build_support_always_includes_empty_and_singletons():
     n = 6
     approx = OddSHAP(n=n, random_state=0)
-    approx._build_support([(0, 1, 2), (2, 4)])  # even-size (2,4) should be dropped
+    approx._build_support([(0, 1, 2)])
     assert () in approx.odd_interaction_lookup
     for i in range(n):
         assert (i,) in approx.odd_interaction_lookup
     assert (0, 1, 2) in approx.odd_interaction_lookup
-    assert (2, 4) not in approx.odd_interaction_lookup
 
 
-def test_build_support_drops_even_and_singleton_inputs():
-    """_build_support pre-filters to len>=2 odd inputs."""
+def test_build_support_drops_singleton_inputs():
+    """_build_support skips singleton inputs because singletons are always included."""
     n = 6
     approx = OddSHAP(n=n, random_state=0)
-    approx._build_support([(0,), (1, 2), (0, 1, 2, 3, 4)])  # only the last is kept
+    approx._build_support([(0,), (0, 1, 2, 3, 4)])
     higher_order = {t for t in approx.odd_interaction_lookup if len(t) >= 2}
     assert higher_order == {(0, 1, 2, 3, 4)}
 
@@ -557,6 +576,7 @@ def test_regression_kernel_weights_reject_degenerate_n(n):
         OddSHAP._init_regression_kernel_weights_static(n)
 
 
+@skip_if_no_lightgbm
 def test_custom_tree_params_are_used_for_the_surrogate_fit():
     """The tree_params branch of `_fit_surrogate_model` builds the LightGBM
     surrogate from the user-supplied parameters."""
@@ -571,6 +591,22 @@ def test_custom_tree_params_are_used_for_the_surrogate_fit():
     assert surrogate.get_params()["n_estimators"] == 5
 
 
+@skip_if_no_lightgbm
+def test_tree_params_can_override_shared_surrogate_kwargs():
+    """tree_params entries override the built-in surrogate kwargs without a TypeError."""
+    n = 6
+    game = DummyGame(n=n, interaction=(1, 2))
+    approx = OddSHAP(n=n, random_state=0, tree_params={"random_state": 7, "n_jobs": 2})
+    approx._sampler.sample(2**n)
+    coalitions = approx._sampler.coalitions_matrix
+    game_values = np.asarray(game(coalitions), dtype=float)
+    surrogate = approx._fit_surrogate_model(coalitions=coalitions, game_values=game_values)
+    assert surrogate.get_params()["random_state"] == 7
+    assert surrogate.get_params()["n_jobs"] == 2
+    assert surrogate.get_params()["max_depth"] == 10
+
+
+@skip_if_no_lightgbm
 def test_tree_params_without_depth_keeps_paper_default():
     """tree_params lacking max_depth keeps the paper's depth-10 surrogate (not unlimited)."""
     n = 6
@@ -681,19 +717,16 @@ def test_transform_to_shapley_rejects_wrong_length():
         approx._transform_to_shapley(wrong, baseline_value=0.0)
 
 
-def test_transform_to_shapley_skips_even_interactions():
-    """Even-cardinality terms never appear from _build_support, but _transform skips
-    them defensively: perturbing an even term's coefficient must not change the output.
-    """
+def test_transform_to_shapley_vectorized_matches_formula():
+    """The vectorized Shapley transform matches the expected closed-form values."""
     n = 6
     approx = OddSHAP(n=n, random_state=0)
     approx._build_support([(0, 1, 2)])
-    # inject an even interaction past the regular support
-    approx.odd_interaction_lookup[(0, 1)] = approx.n_active_interactions
-    approx.n_active_interactions += 1
     coeffs = np.ones(approx.n_active_interactions)
-    coeffs_perturbed = coeffs.copy()
-    coeffs_perturbed[-1] = 1e9  # huge coefficient on the even term
     sv = approx._transform_to_shapley(coeffs, baseline_value=0.0)
-    sv_perturbed = approx._transform_to_shapley(coeffs_perturbed, baseline_value=0.0)
-    np.testing.assert_array_equal(sv, sv_perturbed)
+    # singletons contribute -2 * 1/1 = -2; the triple contributes -2 * 1/3
+    for i in range(n):
+        expected = -2.0 * 1.0  # singleton (i,)
+        if i in (0, 1, 2):
+            expected += -2.0 * (1.0 / 3.0)  # triple (0,1,2)
+        np.testing.assert_allclose(sv[i + 1], expected, atol=1e-12)
