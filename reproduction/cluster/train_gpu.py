@@ -132,8 +132,12 @@ def main() -> None:
     ap.add_argument("--variant", default="v522_merged", choices=VARIANT_CHOICES)
     ap.add_argument("--start", type=int, default=0)
     ap.add_argument("--end", type=int, default=N_INST)
+    ap.add_argument("--experiments", nargs="+", default=["table1", "fig2", "eta"],
+                    choices=["table1", "fig2", "eta"],
+                    help="which experiments to run per instance (split for short backfill jobs)")
     args = ap.parse_args()
     _require_gpu()
+    exp = set(args.experiments)
     build = vit_builder() if args.vf == "vit16" else distilbert_builder()
 
     for i in range(max(0, args.start), min(args.end, N_INST)):
@@ -141,14 +145,15 @@ def main() -> None:
         gt = singles(ExactComputer(game=game, n_players=n)(index="SV"), n)
         # Table 1
         b1 = max(n + 1, 100 * n)
-        for e in EST:
-            try:
-                mse = float(np.mean((singles(make(e, n, args.variant).approximate(b1, game), n) - gt) ** 2))
-                print(f"PARTIAL_T1 {args.vf} {e} {i} {b1} {mse:.6e}", flush=True)
-            except (ValueError, RuntimeError):
-                pass
+        if "table1" in exp:
+            for e in EST:
+                try:
+                    mse = float(np.mean((singles(make(e, n, args.variant).approximate(b1, game), n) - gt) ** 2))
+                    print(f"PARTIAL_T1 {args.vf} {e} {i} {b1} {mse:.6e}", flush=True)
+                except (ValueError, RuntimeError):
+                    pass
         # Figure 2 (MSE vs budget) + Figure 5 (runtime vs budget)
-        for b in log_budgets(n):
+        for b in (log_budgets(n) if "fig2" in exp else []):
             for e in EST:
                 try:
                     t0 = time.perf_counter()
@@ -160,7 +165,7 @@ def main() -> None:
                 except (ValueError, RuntimeError):
                     pass
         # Figure 4 / 11 — eta at three budgets
-        for budget in ETA_BUDGETS:
+        for budget in (ETA_BUDGETS if "eta" in exp else []):
             for et in ETAS:
                 try:
                     mse = float(np.mean((singles(load_oddshap(args.variant)(n=n, random_state=0, interaction_factor=et).approximate(budget, game), n) - gt) ** 2))
