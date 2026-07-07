@@ -130,10 +130,15 @@ def run_eta(vf, truths, jobs, variant, out: Path):
             for i in range(len(truths)))
         base_med = float(np.nanmedian([p["base"] for p in per]))
         for e in ETAS:
-            med = float(np.nanmedian([p[e] for p in per]))
+            vals = np.array([p[e] for p in per], dtype=float)
+            med = float(np.nanmedian(vals))
+            q1 = float(np.nanquantile(vals, 0.25)); q3 = float(np.nanquantile(vals, 0.75))
+            b = base_med if base_med else float("nan")
+            # MSE ratio vs the interaction-free baseline (median), with an IQR band from the
+            # eta-MSE spread over instances normalised by the same baseline median.
             rows.append((vf.name, variant, budget, e, int(np.ceil(budget / e)), len(truths),
-                         med, med / base_med if base_med else float("nan")))
-        rows.append((vf.name, variant, budget, "base", 0, len(truths), base_med, 1.0))
+                         med, med / b, q1 / b, q3 / b))
+        rows.append((vf.name, variant, budget, "base", 0, len(truths), base_med, 1.0, 1.0, 1.0))
     _write(out / f"eta_{vf.name}_{variant}.csv", SCHEMA_ETA, rows)
 
 

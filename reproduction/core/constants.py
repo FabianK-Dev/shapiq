@@ -35,5 +35,6 @@ GPU_VF_NAMES = ["vit16", "distilbert"]
 # --- CSV schemas (writers and readers both import these) -------------------- #
 SCHEMA_TABLE1 = ["vf", "estimator", "variant", "n", "budget", "median", "q1", "q3", "mean", "std"]
 SCHEMA_FIG2 = ["vf", "estimator", "variant", "budget", "n", "median", "q1", "q3"]
-SCHEMA_ETA = ["vf", "variant", "budget", "eta", "n_interactions", "n", "median_mse", "ratio_vs_base"]
+SCHEMA_ETA = ["vf", "variant", "budget", "eta", "n_interactions", "n",
+              "median_mse", "ratio_vs_base", "ratio_q1", "ratio_q3"]
 SCHEMA_RUNTIME = ["vf", "estimator", "variant", "budget", "n", "median_runtime_s"]

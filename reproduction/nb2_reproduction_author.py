@@ -165,14 +165,19 @@ for vf in TAB_VFS + GPU_VFS:                       # all 8 value functions
 # %% [markdown]
 # ## Figure 4 & Figure 11 — interaction-sparsity (η) ablation
 #
-# MSE ratio vs the interaction-free baseline, at three fixed budgets (Figure 4 = 10,000;
-# Figure 11 = 5,000 / 20,000). U-shape: adding odd interactions helps, then over-fits.
-# Estate excluded (paper). Each value function has a distinct colour **and** marker **and**
-# line style (colour-blind-safe).
+# MSE ratio vs the interaction-free baseline (median ± IQR band), at three fixed budgets
+# (Figure 4 = 10,000; Figure 11 = 5,000 / 20,000). U-shape: adding odd interactions helps,
+# then over-fits. Estate excluded (paper). Two panels per budget where the paper figure is
+# available: **(1) ours** (each value function a distinct colour + marker + line style, with
+# its IQR band) and **(2) the paper's original panel** (its own median ± IQR bands). Each
+# value function's band shows the spread over the 30 instances.
 
 # %%
 for budget, label in [(10_000, "Figure 4"), (5_000, "Figure 11a"), (20_000, "Figure 11c")]:
-    fig, ax = plt.subplots(figsize=(7.4, 4.4))
+    png = R.paper_figure_path("ablation", "fig4") if budget == 10_000 else None
+    ncol = 2 if png is not None else 1
+    fig, axes = plt.subplots(1, ncol, figsize=(7.4 * ncol, 4.4), squeeze=False)
+    ax = axes[0][0]
     any_pts = False
     for vf in TAB_VFS + GPU_VFS:
         if vf == "realestate":
@@ -181,15 +186,24 @@ for budget, label in [(10_000, "Figure 4"), (5_000, "Figure 11a"), (20_000, "Fig
         if not pts:
             continue
         any_pts = True
-        ax.plot([p[0] for p in pts], [p[1] for p in pts], label=vf, **R.vf_style(vf))
+        xs = [p[0] for p in pts]
+        med = [p[1] for p in pts]; q1 = [p[2] for p in pts]; q3 = [p[3] for p in pts]
+        st = R.vf_style(vf)
+        ax.plot(xs, med, label=vf, **st)
+        ax.fill_between(xs, q1, q3, color=st["color"], alpha=0.15)
     if not any_pts:
         plt.close(fig); continue
     ax.axhline(1.0, color="black", lw=0.8, ls="--", label="interaction-free baseline")
     ax.set_xscale("log"); ax.set_yscale("log")
     ax.set_xlabel(r"number of odd interactions $\lceil m/\eta\rceil$")
-    ax.set_ylabel("MSE ratio vs interaction-free")
-    ax.set_title(R.fig_title(f"{label} — η ablation", "7 VFs", VARIANT, f"m={budget:,}"))
-    ax.legend(fontsize=8, ncol=2)
+    ax.set_ylabel("MSE ratio (median ± IQR band)")
+    ax.set_title(f"(1) ours — {label}")
+    ax.legend(fontsize=7, ncol=2)
+    if png is not None:
+        axp = axes[0][1]
+        axp.imshow(mpimg.imread(str(png))); axp.axis("off")
+        axp.set_title("(2) paper (original Fig. 4, with IQR band)")
+    fig.suptitle(R.fig_title(f"{label} — η ablation", "7 VFs", VARIANT, f"m={budget:,}"), y=1.02)
     R.add_banner(fig, BANNER_TAB); plt.show()
 
 # %% [markdown]

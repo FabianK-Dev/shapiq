@@ -140,13 +140,22 @@ def load_fig2(vf: str, variant: str):
 
 
 def load_eta(vf: str, variant: str, budget: int = 10_000):
+    """Figure-4 eta ablation for one vf/variant/budget.
+
+    Returns a list of (n_interactions, ratio_median, ratio_q1, ratio_q3) sorted by
+    n_interactions. ratio_q1/q3 fall back to the median when the band columns are absent
+    (older data), so the caller can always unpack four values.
+    """
     name = f"eta_{vf}_{variant}.csv"
     if not has(name):
         return None
     pts = []
     for r in read(name):
         if int(r["budget"]) == budget and r["eta"] != "base":
-            pts.append((int(r["n_interactions"]), float(r["ratio_vs_base"])))
+            ni = int(r["n_interactions"]); ratio = float(r["ratio_vs_base"])
+            q1 = float(r["ratio_q1"]) if r.get("ratio_q1") else ratio
+            q3 = float(r["ratio_q3"]) if r.get("ratio_q3") else ratio
+            pts.append((ni, ratio, q1, q3))
     return sorted(pts)
 
 

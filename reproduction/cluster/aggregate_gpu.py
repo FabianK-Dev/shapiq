@@ -94,19 +94,22 @@ def main() -> None:
     if rows:
         _write(out / f"runtime_{args.vf}_{args.variant}.csv", SCHEMA_RUNTIME, rows)
 
-    # Figure 4/11 eta
+    # Figure 4/11 eta (with IQR band on the ratio)
     rows = []
     budgets = sorted({b for d in et.values() for b in d})
     for budget in budgets:
         base_med = float(np.nanmedian(et.get("base", {}).get(budget, [np.nan])))
+        b = base_med if base_med else float("nan")
         for e in ETAS:
             vals = et.get(str(e), {}).get(budget, [])
             if vals:
                 med = float(np.nanmedian(vals))
+                q1 = float(np.nanquantile(vals, 0.25)); q3 = float(np.nanquantile(vals, 0.75))
                 rows.append((args.vf, args.variant, budget, e, int(np.ceil(budget / e)), len(vals),
-                             med, med / base_med if base_med else float("nan")))
+                             med, med / b, q1 / b, q3 / b))
         if et.get("base", {}).get(budget):
-            rows.append((args.vf, args.variant, budget, "base", 0, len(et["base"][budget]), base_med, 1.0))
+            rows.append((args.vf, args.variant, budget, "base", 0, len(et["base"][budget]),
+                         base_med, 1.0, 1.0, 1.0))
     if rows:
         _write(out / f"eta_{args.vf}_{args.variant}.csv", SCHEMA_ETA, rows)
 
