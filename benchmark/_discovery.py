@@ -18,7 +18,6 @@ from typing import Any
 PROJECT_APPROXIMATOR_NAMES: tuple[str, ...] = (
     "LeverageSHAP",
     "OptimizedKernelSHAP",
-    "PolySHAP",
     "PolySHAPKAdd",
     "PolySHAPPartial",
     "OddSHAP",
