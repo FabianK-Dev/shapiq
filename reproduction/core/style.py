@@ -75,3 +75,37 @@ def variant_style(variant: str, *, emphasize: bool = False) -> dict:
     base = dict(VARIANT_STYLE.get(variant, VARIANT_STYLE["library"]))
     base.update(lw=2.4 if emphasize else 1.8, ms=4)
     return base
+
+
+# --- paper-aligned styling -------------------------------------------------- #
+# The paper's own Figure-2 colours (extracted from the PDF vector layer), so our
+# reproduction panel sits next to the paper panel with matching per-method colours.
+# We keep a redundant marker + line style on top (the paper uses colour alone), so the
+# figures remain readable under colour vision deficiency.
+PAPER_COLOR = {
+    "MSR": "#D0D0D0", "SVARM": "#8C8C8C", "PermutationSampling": "#555555", "PermSamp": "#555555",
+    "ProxyLGBM": "#B0BEC5", "RegressionMSR": "#3F51B5",
+    "3-PolySHAP": "#7CB342", "LeverageSHAP": "#00968A",
+    "OddSHAP": "#E64A19",
+}
+# our-estimator name -> paper legend name (paper uses the full "PermutationSampling")
+PAPER_METHOD_NAME = {"PermSamp": "PermutationSampling", "MSR": "MSR", "SVARM": "SVARM",
+                     "RegressionMSR": "RegressionMSR", "OddSHAP": "OddSHAP"}
+# our value-function id -> paper figure id (the paper uses short aliases)
+PAPER_VF_ALIAS = {"realestate": "estate", "corrgroups60": "cg60",
+                  "independentlinear60": "il60"}
+_PAPER_MARKER = {"MSR": "o", "SVARM": "s", "PermSamp": "^", "PermutationSampling": "^",
+                 "RegressionMSR": "P", "ProxyLGBM": "X", "3-PolySHAP": "*",
+                 "LeverageSHAP": "D", "OddSHAP": "o"}
+_PAPER_LINESTYLE = {"MSR": ":", "SVARM": "--", "PermSamp": "-.", "PermutationSampling": "-.",
+                    "RegressionMSR": "-", "ProxyLGBM": ":", "3-PolySHAP": "--",
+                    "LeverageSHAP": "-.", "OddSHAP": "-"}
+
+
+def paper_style(method: str, *, emphasize: bool = None) -> dict:
+    """Paper-aligned plot kwargs (colour from the paper, plus redundant marker/line style)."""
+    emph = (method == "OddSHAP") if emphasize is None else emphasize
+    return dict(color=PAPER_COLOR.get(method, "#555555"),
+                marker=_PAPER_MARKER.get(method, "o"),
+                linestyle=_PAPER_LINESTYLE.get(method, "-"),
+                lw=2.6 if emph else 1.3, ms=4 if emph else 3)

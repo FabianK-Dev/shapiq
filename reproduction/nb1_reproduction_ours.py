@@ -79,31 +79,88 @@ except (NameError, AttributeError):
 # %% [markdown]
 # ## Figure 2 — MSE vs budget (per value function)
 #
-# OddSHAP vs the sampling baselines. Log-log; median line + IQR band. Each estimator has a
-# fixed colour + marker + line style. OddSHAP turns on at budget ≥ n·η and drops fastest.
+# One **row per value function**, three panels each — all showing median ± IQR band, colours
+# aligned with the paper (plus a redundant marker + line style, so the panels stay readable
+# under colour vision deficiency):
+#
+# 1. **Ours** — our reproduction: every estimator we run, median line + IQR band.
+# 2. **Paper** — the paper's original Figure-2 panel (its own figure, with the paper's IQR
+#    bands and full method set including LeverageSHAP / 3-PolySHAP, which we do not run).
+# 3. **OddSHAP: ours vs paper** — OddSHAP alone, our curve + IQR band (solid) over the paper's
+#    median curve (dashed; the paper's per-curve band edges were not digitised), so the
+#    reproduction fidelity is visible at a glance.
 
 # %%
-for vf in TAB_VFS:
-    curves = R.load_fig2(vf, VARIANT)
-    if not curves:
+import matplotlib.image as mpimg
+
+for vf in TAB_VFS + GPU_VFS:                       # all 8 value functions
+    ours = R.load_fig2(vf, VARIANT)
+    paper = R.load_paper_fig2(vf)
+    png = R.paper_figure_path(vf, "fig2")
+    band = R.load_paper_oddshap_band(vf)           # digitised paper OddSHAP band, if available
+    if not ours:
         continue
-    fig, ax = plt.subplots(figsize=(6.6, 4.2))
+    is_gpu = vf in GPU_VFS
+    banner = BANNER_GPU if is_gpu else BANNER_TAB
+    fig, axes = plt.subplots(1, 3, figsize=(15, 4.2))
+
+    # (1) ours — median + IQR band
+    ax = axes[0]
     for e in ESTIMATORS:
-        pts = sorted(curves.get(e, {}).items())
+        pts = sorted(ours.get(e, {}).items())
         if not pts:
             continue
         xs = [b for b, _ in pts]
         med = np.array([v[0] for _, v in pts])
         q1 = np.array([v[1] for _, v in pts]); q3 = np.array([v[2] for _, v in pts])
-        st = R.estimator_style(e)
+        st = R.paper_style(e)
         ax.plot(xs, np.clip(med, 1e-32, None), label=e, **st)
         ax.fill_between(xs, np.clip(q1, 1e-32, None), np.clip(q3, 1e-32, None),
-                        color=st["color"], alpha=0.12)
+                        color=st["color"], alpha=0.15)
     ax.set_xscale("log"); ax.set_yscale("log"); ax.grid(True, alpha=0.3)
-    ax.set_xlabel("budget m"); ax.set_ylabel("Shapley MSE (median, IQR band)")
-    ax.set_title(R.fig_title("Figure 2 — MSE vs budget", vf, VARIANT))
-    ax.legend(fontsize=7, ncol=2)
-    R.add_banner(fig, BANNER_TAB); plt.show()
+    ax.set_xlabel("budget m"); ax.set_ylabel("MSE (median ± IQR band)")
+    ax.set_title("(1) ours (reproduction)"); ax.legend(fontsize=6, ncol=2)
+
+    # (2) paper — the paper's original figure PNG (with IQR band) if we have it,
+    # otherwise redrawn from the extracted median coordinates (no band digitised).
+    ax = axes[1]
+    if png is not None:
+        ax.imshow(mpimg.imread(str(png))); ax.axis("off")
+        ax.set_title("(2) paper (original Fig. 2, with IQR band)")
+    elif paper:
+        for m, pts in paper.items():
+            ax.plot([b for b, _ in pts], [v for _, v in pts], label=m, **R.paper_style(m))
+        ax.set_xscale("log"); ax.set_yscale("log"); ax.grid(True, alpha=0.3)
+        ax.set_xlabel("budget m"); ax.legend(fontsize=6, ncol=2)
+        ax.set_title("(2) paper (Fig. 2, extracted median)")
+    else:
+        ax.axis("off"); ax.set_title("(2) paper — figure not available")
+
+    # (3) OddSHAP: ours (median + IQR band) vs paper (median, + band if digitised)
+    ax = axes[2]
+    op = sorted(ours.get("OddSHAP", {}).items())
+    if op:
+        xs = [b for b, _ in op]
+        med = np.clip([v[0] for _, v in op], 1e-32, None)
+        q1 = np.clip([v[1] for _, v in op], 1e-32, None); q3 = np.clip([v[2] for _, v in op], 1e-32, None)
+        st = R.paper_style("OddSHAP")
+        ax.plot(xs, med, label="OddSHAP (ours)", **st)
+        ax.fill_between(xs, q1, q3, color=st["color"], alpha=0.18)
+    if paper and "OddSHAP" in paper:
+        pp = paper["OddSHAP"]
+        pc = R.PAPER_COLOR["OddSHAP"]
+        ax.plot([b for b, _ in pp], [v for _, v in pp], label="OddSHAP (paper, median)",
+                color=pc, marker="x", linestyle="--", lw=1.8, ms=4)
+        if band:  # digitised paper IQR band
+            bx = [b for b, _, _, _ in band]
+            bq1 = [q1 for _, _, q1, _ in band]; bq3 = [q3 for _, _, _, q3 in band]
+            ax.fill_between(bx, bq1, bq3, color=pc, alpha=0.12, hatch="///", edgecolor=pc, lw=0)
+    ax.set_xscale("log"); ax.set_yscale("log"); ax.grid(True, alpha=0.3)
+    ax.set_xlabel("budget m"); ax.set_ylabel("MSE (median ± IQR band)")
+    ax.set_title("(3) OddSHAP: ours vs paper"); ax.legend(fontsize=7)
+
+    fig.suptitle(R.fig_title("Figure 2 — MSE vs budget", vf, VARIANT), y=1.02)
+    R.add_banner(fig, banner); plt.show()
 
 # %% [markdown]
 # ## Figure 4 & Figure 11 — interaction-sparsity (η) ablation

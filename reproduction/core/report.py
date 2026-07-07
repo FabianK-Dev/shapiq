@@ -17,7 +17,8 @@ import numpy as np
 
 from .constants import ESTIMATORS, PAPER_D, VARIANT_LABEL, VARIANT_SHORT
 from .style import (  # noqa: F401  (re-exported for the notebooks)
-    OKABE_ITO, ODDSHAP_COLOR, estimator_style, variant_style, vf_style,
+    OKABE_ITO, ODDSHAP_COLOR, PAPER_COLOR, PAPER_VF_ALIAS, estimator_style, paper_style,
+    variant_style, vf_style,
 )
 
 
@@ -28,6 +29,13 @@ def data_dir() -> Path:
     return Path("reproduction/data")
 
 
+def paper_dir() -> Path:
+    for c in (Path("reproduction/paper_reference"), Path("paper_reference"), Path("../paper_reference")):
+        if c.is_dir():
+            return c
+    return Path("reproduction/paper_reference")
+
+
 def read(name: str):
     with open(data_dir() / name, newline="", encoding="utf-8") as f:
         return list(csv.DictReader(f))
@@ -35,6 +43,51 @@ def read(name: str):
 
 def has(name: str) -> bool:
     return (data_dir() / name).exists()
+
+
+def load_paper_fig2(vf: str):
+    """Paper's extracted Figure-2 curves for one value function: {method: [(budget, mse)]}.
+
+    Resolves our value-function id to the paper's alias (e.g. realestate -> estate).
+    """
+    path = paper_dir() / "paper_fig2_extracted.csv"
+    if not path.exists():
+        return None
+    pvf = PAPER_VF_ALIAS.get(vf, vf)
+    out = {}
+    with open(path, newline="", encoding="utf-8") as f:
+        for r in csv.DictReader(f):
+            if r["value_function"] == pvf:
+                out.setdefault(r["method"], []).append((float(r["budget"]), float(r["mse"])))
+    return {m: sorted(v) for m, v in out.items()} or None
+
+
+def paper_figure_path(vf: str, kind: str = "fig2") -> Path | None:
+    """Path to the paper's original figure PNG for a value function, if present."""
+    pvf = PAPER_VF_ALIAS.get(vf, vf)
+    p = paper_dir() / "figures" / f"paper_{kind}_{pvf}.png"
+    return p if p.exists() else None
+
+
+def load_paper_oddshap_band(vf: str):
+    """Digitised paper OddSHAP IQR band: list of (budget, median, q1, q3), or None.
+
+    Read from paper_fig2_oddshap_band.csv (the band edges digitised from the paper's
+    Figure 2 — approximate). Returns only rows with a valid q1 <= q3.
+    """
+    path = paper_dir() / "paper_fig2_oddshap_band.csv"
+    if not path.exists():
+        return None
+    pvf = PAPER_VF_ALIAS.get(vf, vf)
+    out = []
+    with open(path, newline="", encoding="utf-8") as f:
+        for r in csv.DictReader(f):
+            if r["value_function"] != pvf or not r.get("q1") or not r.get("q3"):
+                continue
+            b, m, q1, q3 = float(r["budget"]), float(r["median"]), float(r["q1"]), float(r["q3"])
+            if q1 <= m <= q3:            # drop digitisation points where the band crossed
+                out.append((b, m, q1, q3))
+    return sorted(out) or None
 
 
 def environment_banner(variant: str, *, gt: str, vf_family: str = "XGBoost + interventional (50 bg)") -> str:
