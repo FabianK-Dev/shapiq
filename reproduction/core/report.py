@@ -15,23 +15,10 @@ from pathlib import Path
 
 import numpy as np
 
-# canonical per-method colours (shared across every notebook + the paper panels)
-PCOL = {
-    "MSR": (0.816, 0.816, 0.816), "SVARM": (0.549, 0.549, 0.549),
-    "PermutationSampling": (0.333, 0.333, 0.333), "PermSamp": (0.333, 0.333, 0.333),
-    "ProxyLGBM": (0.69, 0.745, 0.773), "RegressionMSR": (0.247, 0.318, 0.71),
-    "3-PolySHAP": (0.486, 0.702, 0.259), "LeverageSHAP": (0.0, 0.588, 0.533),
-    "KernelSHAP": (0.80, 0.60, 0.85), "kADDSHAP": (0.95, 0.70, 0.30),
-    "OddSHAP": (0.902, 0.29, 0.098),
-}
-ESTIMATORS = ["MSR", "SVARM", "PermSamp", "KernelSHAP", "kADDSHAP", "RegressionMSR", "OddSHAP"]
-
-# paper d per value function (for titles)
-PAPER_D = {"cancer": 30, "realestate": 15, "corrgroups60": 60, "independentlinear60": 60,
-           "nhanes": 79, "crime": 101, "vit16": 16, "distilbert": 14}
-VARIANT_LABEL = {"v522_merged": "OddSHAP PR #522 (ours, merged)",
-                 "v560_improved": "OddSHAP PR #560 (author improvement)",
-                 "library": "installed shapiq.OddSHAP"}
+from .constants import ESTIMATORS, PAPER_D, VARIANT_LABEL, VARIANT_SHORT
+from .style import (  # noqa: F401  (re-exported for the notebooks)
+    OKABE_ITO, ODDSHAP_COLOR, estimator_style, variant_style, vf_style,
+)
 
 
 def data_dir() -> Path:
@@ -62,13 +49,18 @@ def fig_title(base: str, vf: str, variant: str, extra: str = "") -> str:
     """Figure title that always names the value function (with d) and the variant."""
     d = PAPER_D.get(vf)
     dtag = f" (d={d})" if d else ""
-    vtag = {"v522_merged": "#522", "v560_improved": "#560", "library": "lib"}.get(variant, variant)
+    vtag = VARIANT_SHORT.get(variant, variant)
     return f"{base} — {vf}{dtag} · {vtag}{(' · ' + extra) if extra else ''}"
 
 
 def add_banner(fig, text: str) -> None:
-    """Attach the environment banner as a footnote below a figure."""
-    fig.text(0.5, -0.02, text, ha="center", va="top", fontsize=6.5, color="#555555", wrap=True)
+    """Attach the environment banner as a footnote below the figure.
+
+    Reserves bottom margin so the 7pt caption is not clipped on export (a bare
+    ``fig.text`` below the axes clips unless the saver uses bbox_inches='tight').
+    """
+    fig.subplots_adjust(bottom=0.22)
+    fig.text(0.5, 0.01, text, ha="center", va="bottom", fontsize=7, color="#555555", wrap=True)
 
 
 def load_table1(vf: str, variant: str):
@@ -105,6 +97,17 @@ def load_eta(vf: str, variant: str, budget: int = 10_000):
     return sorted(pts)
 
 
+def load_runtime(vf: str, variant: str):
+    """Return {estimator: [(budget, median_runtime_s), ...]} for one vf/variant, or None."""
+    name = f"runtime_{vf}_{variant}.csv"
+    if not has(name):
+        return None
+    out = {}
+    for r in read(name):
+        out.setdefault(r["estimator"], []).append((int(r["budget"]), float(r["median_runtime_s"])))
+    return {e: sorted(v) for e, v in out.items()}
+
+
 def average_rank(vfs, variant: str):
     """Average rank of each estimator over the given value functions (median MSE)."""
     ranks = {e: [] for e in ESTIMATORS}
@@ -118,3 +121,25 @@ def average_rank(vfs, variant: str):
         for rank, e in enumerate(order, 1):
             ranks[e].append(rank)
     return {e: float(np.mean(v)) for e, v in ranks.items() if v}, used
+
+
+def table3_dataframe(vfs, variant: str):
+    """Table 3 as a styled pandas DataFrame: rows = estimators, cols = 'vf median [Q1,Q3]'.
+
+    Falls back to a plain dict of strings if pandas is unavailable.
+    """
+    cells = {}
+    for vf in vfs:
+        t = load_table1(vf, variant)
+        if not t:
+            continue
+        for e, (m, q1, q3, _mean, _std) in t.items():
+            cells.setdefault(e, {})[f"{vf} (d={PAPER_D.get(vf, '?')})"] = f"{m:.2e} [{q1:.1e}, {q3:.1e}]"
+    order = sorted(cells, key=lambda e: (0 if e == "OddSHAP" else 1, e))
+    try:
+        import pandas as pd
+
+        df = pd.DataFrame({e: cells[e] for e in order}).T
+        return df
+    except ImportError:
+        return {e: cells[e] for e in order}

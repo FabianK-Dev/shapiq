@@ -12,14 +12,15 @@ Design goals
    the variant registry, so the *same* harness runs PR #522 vs PR #560 vs the installed
    library on identical games/seeds and the results are directly comparable.
 
-Nothing here reads a precomputed CSV — every number is produced by these functions.
-Heavy full-scale runs go through the cluster scripts; the notebook calls the same
-functions at a small scale for a live, self-contained demo.
+This module owns the *building blocks* — value function, ground truth, estimator
+construction, the interaction-free baseline, and the budget grid. The cluster scripts
+(`reproduction/cluster/`) compose them into the parallel experiment sweeps that write the
+CSVs; the notebooks read those CSVs and plot. Small live demos (e.g. the variant delta,
+the semivalue check) call these building blocks directly.
 """
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
 
 import numpy as np
@@ -38,16 +39,16 @@ from shapiq.approximator import (
 from shapiq.tree.interventional.explainer import InterventionalTreeExplainer
 from shapiq_games.benchmark.interventionaltreeshapiq_xai import InterventionalGame
 
+from .constants import (  # noqa: F401  (re-exported for callers)
+    BASELINE_ESTIMATORS, DEFAULT_VARIANT, ESTIMATORS, ETA_BUDGETS, ETAS,
+    INTERACTION_FREE_FACTOR,
+)
 from .variants import load_oddshap, variant_label
 
 # --- experiment constants (paper-aligned) ----------------------------------- #
 RANDOM_STATE = 40
 N_BACKGROUND = 50
-ETAS = [50, 10, 5, 2]
-ETA_BUDGET = 10_000
-# the baseline sampling estimators we control (paper adds LeverageSHAP / 3-PolySHAP,
-# which are other groups' methods and not importable here).
-BASELINE_ESTIMATORS = ["MSR", "SVARM", "PermSamp", "KernelSHAP", "kADDSHAP", "RegressionMSR"]
+ETA_BUDGET = 10_000  # Figure 4 headline budget (Figure 11 sweeps ETA_BUDGETS)
 
 
 # csv-name, loader, kind, paper d — the six tabular value functions
@@ -61,7 +62,7 @@ TABULAR_VFS = [
 ]
 
 
-def make_estimator(name: str, n: int, *, oddshap_variant: str = "v522_merged"):
+def make_estimator(name: str, n: int, *, oddshap_variant: str = DEFAULT_VARIANT):
     """Build an SV estimator by name.
 
     ``name="OddSHAP"`` resolves through the variant registry (``oddshap_variant``),
@@ -90,13 +91,43 @@ def sfv(iv, n: int) -> np.ndarray:
     return np.array([float(iv.dict_values.get((i,), 0.0)) for i in range(n)])
 
 
-def safe_mse(est_name: str, n: int, budget: int, game, truth, *, oddshap_variant="v522_merged"):
-    """Run one estimator; return Shapley MSE, or ``inf`` if it refuses the budget."""
+def safe_mse(est_name: str, n: int, budget: int, game, truth, *, oddshap_variant=DEFAULT_VARIANT):
+    """Run one estimator; return Shapley MSE, or ``inf`` if it refuses the budget.
+
+    A budget an estimator refuses by contract (OddSHAP below its minimum) surfaces as a
+    ``ValueError``/``RuntimeError`` and is recorded as ``inf`` (ranks last, filtered by
+    ``np.isfinite`` downstream) rather than aborting a whole sweep.
+    """
     try:
         iv = make_estimator(est_name, n, oddshap_variant=oddshap_variant).approximate(budget, game)
         return float(np.mean((sfv(iv, n) - truth) ** 2))
     except (ValueError, RuntimeError):
         return float("inf")
+
+
+def interaction_free_oddshap(n: int, *, oddshap_variant: str = DEFAULT_VARIANT):
+    """OddSHAP with an emptied higher-order support — the Figure-4 interaction-free baseline.
+
+    The interaction_factor is irrelevant (the support is emptied), so it uses the shared
+    ``INTERACTION_FREE_FACTOR`` constant. Centralised here so the monkey-patch lives in one
+    place instead of being copied across the cluster scripts.
+    """
+    est = load_oddshap(oddshap_variant)(n=n, random_state=0, interaction_factor=INTERACTION_FREE_FACTOR)
+    est._select_odd_interactions = lambda **kw: []  # noqa: SLF001
+    return est
+
+
+def make_game(model, background, target, *, is_classifier: bool) -> "InterventionalGame":
+    """Build the interventional value function for one target instance.
+
+    A free function (not a ``PreparedVF`` method) so the parallel workers can construct a
+    game from only the picklable model/background/target, without carrying the tree
+    explainer (which is not fork-safe).
+    """
+    return InterventionalGame(
+        model=model, reference_data=background, target_instance=target,
+        class_index=1 if is_classifier else None,
+    )
 
 
 def warm_dispatch() -> None:
@@ -126,10 +157,7 @@ class PreparedVF:
     is_classifier: bool
 
     def game(self, target: np.ndarray) -> InterventionalGame:
-        return InterventionalGame(
-            model=self.model, reference_data=self.background, target_instance=target,
-            class_index=1 if self.is_classifier else None,
-        )
+        return make_game(self.model, self.background, target, is_classifier=self.is_classifier)
 
     def ground_truth(self, target: np.ndarray) -> np.ndarray:
         return sfv(self.explainer.explain_function(target.astype(np.float32)), self.n)
@@ -159,83 +187,16 @@ def prepare_vf(loader, kind: str, *, classifier: bool) -> PreparedVF:
     return PreparedVF(loader.__name__, model, bg, explainer, n, x_te, is_clf)
 
 
-# --- experiments (return plain dicts; the notebook plots them) -------------- #
-def table1_cell(vf: PreparedVF, n_instances: int, estimators, *, oddshap_variant="v522_merged"):
-    """Per-estimator median / IQR of Shapley MSE at budget = 100*d."""
-    budget = max(vf.n + 1, 100 * vf.n)
-    n_use = min(n_instances, vf.x_test.shape[0])
-    per = {est: [] for est in estimators}
-    for i in range(n_use):
-        target = vf.x_test[i]
-        truth = vf.ground_truth(target)
-        game = vf.game(target)
-        for est in estimators:
-            per[est].append(safe_mse(est, vf.n, budget, game, truth, oddshap_variant=oddshap_variant))
-    return {
-        est: {
-            "median": float(np.median(per[est])),
-            "q1": float(np.quantile(per[est], 0.25)),
-            "q3": float(np.quantile(per[est], 0.75)),
-            "std": float(np.std(per[est])),
-            "n": n_use,
-        }
-        for est in estimators
-    }
-
-
-def fig2_curve(vf: PreparedVF, budgets, n_instances: int, estimators, *, oddshap_variant="v522_merged"):
-    """Median Shapley MSE vs budget, per estimator."""
-    n_use = min(n_instances, vf.x_test.shape[0])
-    acc = {est: {b: [] for b in budgets} for est in estimators}
-    for i in range(n_use):
-        target = vf.x_test[i]
-        truth = vf.ground_truth(target)
-        game = vf.game(target)
-        for b in budgets:
-            for est in estimators:
-                m = safe_mse(est, vf.n, b, game, truth, oddshap_variant=oddshap_variant)
-                if np.isfinite(m):
-                    acc[est][b].append(m)
-    return {est: {b: float(np.median(v)) for b, v in acc[est].items() if v} for est in estimators}
-
-
-def eta_ratios(vf: PreparedVF, n_instances: int, *, oddshap_variant="v522_merged"):
-    """Figure-4 interaction-sparsity ablation: MSE ratio vs the interaction-free baseline."""
-    OddSHAP = load_oddshap(oddshap_variant)
-    n_use = min(n_instances, vf.x_test.shape[0])
-    per = {e: [] for e in [*ETAS, "base"]}
-    for i in range(n_use):
-        target = vf.x_test[i]
-        truth = vf.ground_truth(target)
-        game = vf.game(target)
-        for e in ETAS:
-            try:
-                iv = OddSHAP(n=vf.n, random_state=0, interaction_factor=e).approximate(ETA_BUDGET, game)
-                per[e].append(float(np.mean((sfv(iv, vf.n) - truth) ** 2)))
-            except (ValueError, RuntimeError):
-                per[e].append(float("nan"))
-        base = OddSHAP(n=vf.n, random_state=0, interaction_factor=10)
-        base._select_odd_interactions = lambda **kw: []  # noqa: SLF001
-        iv0 = base.approximate(ETA_BUDGET, game)
-        per["base"].append(float(np.mean((sfv(iv0, vf.n) - truth) ** 2)))
-    base_med = float(np.median(per["base"]))
-    return {
-        "n_interactions": [int(math.ceil(ETA_BUDGET / e)) for e in ETAS],
-        "etas": ETAS,
-        "ratios": [float(np.median(per[e])) / base_med if base_med else float("nan") for e in ETAS],
-        "base_median": base_med,
-    }
-
-
 def log_budgets(n: int, n_points: int = 10, hi_cap: int = 20_000):
-    """Log-spaced integer budgets from d+1 to min(2**d, hi_cap)."""
+    """Log-spaced integer budgets from d+1 to min(2**d, hi_cap) — the paper's Fig-2 grid."""
     hi = min(2 ** n, hi_cap)
     return sorted({int(round(b)) for b in np.logspace(np.log10(n + 1), np.log10(hi), n_points)})
 
 
 __all__ = [
-    "BASELINE_ESTIMATORS", "ETAS", "ETA_BUDGET", "TABULAR_VFS",
-    "PreparedVF", "prepare_vf", "make_estimator", "sfv", "safe_mse", "warm_dispatch",
-    "table1_cell", "fig2_curve", "eta_ratios", "log_budgets",
+    "BASELINE_ESTIMATORS", "ESTIMATORS", "ETAS", "ETA_BUDGET", "ETA_BUDGETS",
+    "DEFAULT_VARIANT", "INTERACTION_FREE_FACTOR", "TABULAR_VFS",
+    "PreparedVF", "prepare_vf", "make_estimator", "make_game", "interaction_free_oddshap",
+    "sfv", "safe_mse", "warm_dispatch", "log_budgets",
     "load_oddshap", "variant_label",
 ]

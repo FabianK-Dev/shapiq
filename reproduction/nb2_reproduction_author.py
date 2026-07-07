@@ -1,9 +1,9 @@
 # %% [markdown]
-# # NB1 — OddSHAP paper reproduction with **our merged contribution (PR #522)**
+# # NB2 — OddSHAP paper reproduction with the **author's improvement (PR #560)**
 #
 # This notebook reproduces the paper's results (Fumagalli et al. 2026, *An Odd Estimator
-# for Shapley Values*, arXiv:2602.01399) using the OddSHAP implementation **our group
-# contributed and merged (PR #522)**. Every figure names its value function, dimension,
+# for Shapley Values*, arXiv:2602.01399) using the paper author's follow-up **PR #560** (relaxed minimum budget + paired-row
+# merge). Every figure names its value function, dimension,
 # and the OddSHAP variant, and carries an experimental-environment banner.
 #
 # > **Note on NB1 vs NB2.** NB1 and NB2 share the *same* code, parameterised by one
@@ -13,7 +13,7 @@
 #
 # **Provenance.** All numbers are produced by the cluster scripts in `reproduction/cluster/`
 # and written to the gitignored `reproduction/data/` folder; this notebook reads them and
-# plots. Regenerate with `bash reproduction/cluster/submit_all.sh v522_merged`.
+# plots. Regenerate with `bash reproduction/cluster/submit_all.sh v560_improved`.
 #
 # **Value function** (paper Table 2): XGBoost + interventional perturbation, 50 background
 # samples; ground truth = exact interventional TreeSHAP (tabular) / exact enumeration (GPU).
@@ -33,7 +33,7 @@ sys.path.insert(0, str(Path.cwd() if Path("reproduction").is_dir() else Path.cwd
 from reproduction.core import report as R
 from reproduction.core.constants import ESTIMATORS, GPU_VF_NAMES, TABULAR_VF_NAMES
 
-VARIANT = os.environ.get("ODDSHAP_VARIANT", "v522_merged")
+VARIANT = os.environ.get("ODDSHAP_VARIANT", "v560_improved")
 TAB_VFS, GPU_VFS = TABULAR_VF_NAMES, GPU_VF_NAMES
 BANNER_TAB = R.environment_banner(VARIANT, gt="exact interventional TreeSHAP")
 BANNER_GPU = R.environment_banner(VARIANT, gt="exact Shapley (2^d enumeration)",

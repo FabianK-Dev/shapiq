@@ -32,13 +32,14 @@ from pathlib import Path
 import numpy as np
 from joblib import Parallel, delayed
 
-from reproduction.core.harness import (
-    ETA_BUDGET, ETAS, TABULAR_VFS, BASELINE_ESTIMATORS,
-    load_oddshap, log_budgets, make_estimator, prepare_vf, sfv, warm_dispatch,
+from reproduction.core.constants import (
+    ESTIMATORS, ETA_BUDGETS, ETAS, SCHEMA_ETA, SCHEMA_FIG2, SCHEMA_RUNTIME, SCHEMA_TABLE1,
+    TABULAR_VF_NAMES, VARIANT_CHOICES,
 )
-
-ESTIMATORS = [*BASELINE_ESTIMATORS, "OddSHAP"]
-ETA_BUDGETS = [5_000, 10_000, 20_000]   # Figure 4 (10000) + Figure 11 (5000 / 20000)
+from reproduction.core.harness import (
+    TABULAR_VFS, interaction_free_oddshap, log_budgets, make_estimator, make_game,
+    prepare_vf, sfv, warm_dispatch,
+)
 
 
 def _write(path: Path, header, rows):
@@ -52,8 +53,8 @@ def _write(path: Path, header, rows):
 
 # --- per-instance workers (picklable: receive arrays, not the tree explainer) --- #
 def _mse_row(target, truth, model, bg, n, is_clf, budget, variant):
-    from reproduction.core.harness import PreparedVF  # local import for worker
-    game = PreparedVF("_", model, bg, None, n, np.empty((0, n)), is_clf).game(target)
+    from reproduction.core.harness import make_game  # local import for the loky worker
+    game = make_game(model, bg, target, is_classifier=is_clf)
     out = {}
     for est in ESTIMATORS:
         try:
@@ -80,8 +81,7 @@ def run_table1(vf, truths, n_instances, jobs, variant, out: Path):
                      float(np.quantile(finite, 0.75)) if finite.size else float("inf"),
                      float(np.mean(finite)) if finite.size else float("inf"),
                      float(np.std(finite)) if finite.size else float("inf")))
-    _write(out / f"table1_{vf.name}_{variant}.csv",
-           ["vf", "estimator", "variant", "n", "budget", "median", "q1", "q3", "mean", "std"], rows)
+    _write(out / f"table1_{vf.name}_{variant}.csv", SCHEMA_TABLE1, rows)
 
 
 def run_fig2(vf, truths, jobs, variant, out: Path):
@@ -99,14 +99,13 @@ def run_fig2(vf, truths, jobs, variant, out: Path):
                 rows.append((vf.name, est, variant, b, len(truths),
                              float(np.median(finite)), float(np.quantile(finite, 0.25)),
                              float(np.quantile(finite, 0.75))))
-    _write(out / f"fig2_{vf.name}_{variant}.csv",
-           ["vf", "estimator", "variant", "budget", "n", "median", "q1", "q3"], rows)
+    _write(out / f"fig2_{vf.name}_{variant}.csv", SCHEMA_FIG2, rows)
 
 
 def _eta_row(target, truth, model, bg, n, is_clf, budget, variant):
-    from reproduction.core.harness import PreparedVF
+    from reproduction.core.harness import interaction_free_oddshap, load_oddshap, make_game
     OddSHAP = load_oddshap(variant)
-    game = PreparedVF("_", model, bg, None, n, np.empty((0, n)), is_clf).game(target)
+    game = make_game(model, bg, target, is_classifier=is_clf)
     out = {}
     for e in ETAS:
         try:
@@ -114,10 +113,9 @@ def _eta_row(target, truth, model, bg, n, is_clf, budget, variant):
             out[e] = float(np.mean((sfv(iv, n) - truth) ** 2))
         except (ValueError, RuntimeError):
             out[e] = float("nan")
-    base = OddSHAP(n=n, random_state=0, interaction_factor=10)
-    base._select_odd_interactions = lambda **kw: []  # noqa: SLF001
     try:
-        out["base"] = float(np.mean((sfv(base.approximate(budget, game), n) - truth) ** 2))
+        iv0 = interaction_free_oddshap(n, oddshap_variant=variant).approximate(budget, game)
+        out["base"] = float(np.mean((sfv(iv0, n) - truth) ** 2))
     except (ValueError, RuntimeError):
         out["base"] = float("nan")
     return out
@@ -136,8 +134,7 @@ def run_eta(vf, truths, jobs, variant, out: Path):
             rows.append((vf.name, variant, budget, e, int(np.ceil(budget / e)), len(truths),
                          med, med / base_med if base_med else float("nan")))
         rows.append((vf.name, variant, budget, "base", 0, len(truths), base_med, 1.0))
-    _write(out / f"eta_{vf.name}_{variant}.csv",
-           ["vf", "variant", "budget", "eta", "n_interactions", "n", "median_mse", "ratio_vs_base"], rows)
+    _write(out / f"eta_{vf.name}_{variant}.csv", SCHEMA_ETA, rows)
 
 
 def run_runtime(vf, truths, variant, out: Path):
@@ -158,14 +155,13 @@ def run_runtime(vf, truths, variant, out: Path):
                     pass
             if ts:
                 rows.append((vf.name, est, variant, b, n_time, float(np.median(ts))))
-    _write(out / f"runtime_{vf.name}_{variant}.csv",
-           ["vf", "estimator", "variant", "budget", "n", "median_runtime_s"], rows)
+    _write(out / f"runtime_{vf.name}_{variant}.csv", SCHEMA_RUNTIME, rows)
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--vf", required=True, choices=[v[0] for v in TABULAR_VFS])
-    ap.add_argument("--variant", default="v522_merged", choices=["v522_merged", "v560_improved", "library"])
+    ap.add_argument("--vf", required=True, choices=TABULAR_VF_NAMES)
+    ap.add_argument("--variant", default="v522_merged", choices=VARIANT_CHOICES)
     ap.add_argument("--experiments", nargs="+", default=["table1", "fig2", "eta", "runtime"],
                     choices=["table1", "fig2", "eta", "runtime"])
     ap.add_argument("--instances", type=int, default=30)

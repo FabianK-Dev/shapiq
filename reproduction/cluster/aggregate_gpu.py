@@ -18,8 +18,9 @@ from pathlib import Path
 
 import numpy as np
 
-EST = ["MSR", "SVARM", "PermSamp", "KernelSHAP", "kADDSHAP", "RegressionMSR", "OddSHAP"]
-ETAS = [50, 10, 5, 2]
+from reproduction.core.constants import (
+    ESTIMATORS as EST, ETAS, SCHEMA_ETA, SCHEMA_FIG2, SCHEMA_RUNTIME, SCHEMA_TABLE1,
+)
 
 
 def _write(path, header, rows):
@@ -41,6 +42,7 @@ def main() -> None:
 
     t1 = defaultdict(list)                       # est -> [mse]
     f2 = defaultdict(lambda: defaultdict(list))  # est -> budget -> [mse]
+    rt = defaultdict(lambda: defaultdict(list))  # est -> budget -> [runtime_s]
     et = defaultdict(lambda: defaultdict(list))  # key(eta|base) -> budget -> [mse]
     t1_budget = None
 
@@ -48,7 +50,7 @@ def main() -> None:
         with open(path) as fh:
             for line in fh:
                 p = line.split()
-                if len(p) < 5 or p[1] != args.vf:
+                if len(p) < 6 or p[1] != args.vf:
                     continue
                 if p[0] == "PARTIAL_T1":
                     _, _, est, _i, budget, mse = p[:6]
@@ -56,6 +58,9 @@ def main() -> None:
                 elif p[0] == "PARTIAL_F2":
                     _, _, est, _i, budget, mse = p[:6]
                     f2[est][int(budget)].append(float(mse))
+                elif p[0] == "PARTIAL_RT":
+                    _, _, est, _i, budget, dt = p[:6]
+                    rt[est][int(budget)].append(float(dt))
                 elif p[0] == "PARTIAL_ETA":
                     _, _, key, _i, budget, mse = p[:6]
                     et[key][int(budget)].append(float(mse))
@@ -69,8 +74,7 @@ def main() -> None:
                          float(np.median(v)), float(np.quantile(v, .25)), float(np.quantile(v, .75)),
                          float(np.mean(v)), float(np.std(v))))
     if rows:
-        _write(out / f"table1_{args.vf}_{args.variant}.csv",
-               ["vf", "estimator", "variant", "n", "budget", "median", "q1", "q3", "mean", "std"], rows)
+        _write(out / f"table1_{args.vf}_{args.variant}.csv", SCHEMA_TABLE1, rows)
 
     # Figure 2
     rows = []
@@ -80,8 +84,15 @@ def main() -> None:
             rows.append((args.vf, est, args.variant, b, v.size,
                          float(np.median(v)), float(np.quantile(v, .25)), float(np.quantile(v, .75))))
     if rows:
-        _write(out / f"fig2_{args.vf}_{args.variant}.csv",
-               ["vf", "estimator", "variant", "budget", "n", "median", "q1", "q3"], rows)
+        _write(out / f"fig2_{args.vf}_{args.variant}.csv", SCHEMA_FIG2, rows)
+
+    # Figure 5 runtime
+    rows = []
+    for est in EST:
+        for b, vals in sorted(rt.get(est, {}).items()):
+            rows.append((args.vf, est, args.variant, b, len(vals), float(np.median(vals))))
+    if rows:
+        _write(out / f"runtime_{args.vf}_{args.variant}.csv", SCHEMA_RUNTIME, rows)
 
     # Figure 4/11 eta
     rows = []
@@ -97,8 +108,7 @@ def main() -> None:
         if et.get("base", {}).get(budget):
             rows.append((args.vf, args.variant, budget, "base", 0, len(et["base"][budget]), base_med, 1.0))
     if rows:
-        _write(out / f"eta_{args.vf}_{args.variant}.csv",
-               ["vf", "variant", "budget", "eta", "n_interactions", "n", "median_mse", "ratio_vs_base"], rows)
+        _write(out / f"eta_{args.vf}_{args.variant}.csv", SCHEMA_ETA, rows)
 
 
 if __name__ == "__main__":

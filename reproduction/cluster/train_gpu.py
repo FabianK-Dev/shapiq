@@ -23,23 +23,20 @@ from __future__ import annotations
 import argparse
 import glob
 import os
+import time
 import warnings
 
 import numpy as np
 
 warnings.filterwarnings("ignore")
 
-from shapiq.approximator import (
-    SVARM, KernelSHAP, PermutationSamplingSV, RegressionMSR, UnbiasedKernelSHAP, kADDSHAP,
-)
 from shapiq.game_theory.exact import ExactComputer
 
-from reproduction.core.harness import load_oddshap, log_budgets
+from reproduction.core.constants import ESTIMATORS as EST
+from reproduction.core.constants import ETA_BUDGETS, ETAS, VARIANT_CHOICES
+from reproduction.core.harness import interaction_free_oddshap, load_oddshap, log_budgets, make_estimator, sfv
 
-EST = ["MSR", "SVARM", "PermSamp", "KernelSHAP", "kADDSHAP", "RegressionMSR", "OddSHAP"]
 N_INST = 30
-ETAS = [50, 10, 5, 2]
-ETA_BUDGETS = [5_000, 10_000, 20_000]
 REPO = os.path.expanduser("~/oddshap_reproduction")
 EXCERPT_TOKENS = 14
 REVIEWS = [
@@ -77,23 +74,25 @@ REVIEWS = [
 
 
 def make(name, n, variant):
-    if name == "MSR":
-        return UnbiasedKernelSHAP(n=n, index="SV", max_order=1, random_state=0)
-    if name == "SVARM":
-        return SVARM(n=n, random_state=0)
-    if name == "PermSamp":
-        return PermutationSamplingSV(n=n, random_state=0)
-    if name == "KernelSHAP":
-        return KernelSHAP(n=n, random_state=0)
-    if name == "kADDSHAP":
-        return kADDSHAP(n=n, max_order=2, random_state=0)
-    if name == "RegressionMSR":
-        return RegressionMSR(n=n, index="SV", random_state=0)
-    return load_oddshap(variant)(n=n, random_state=0)
+    """Estimator by name — delegates to the shared harness (single source of truth)."""
+    return make_estimator(name, n, oddshap_variant=variant)
 
 
-def singles(iv, n):
-    return np.array([float(iv.dict_values.get((i,), 0.0)) for i in range(n)])
+# single-feature Shapley vector — the shared harness helper
+singles = sfv
+
+
+def _require_gpu() -> None:
+    """Fail loudly if no CUDA device is visible, instead of silently running on CPU
+    (DistilBERT/ViT exact GT on CPU is prohibitively slow)."""
+    try:
+        import torch
+
+        if not torch.cuda.is_available():
+            msg = "no CUDA device visible — the GPU value functions must run on a GPU node"
+            raise RuntimeError(msg)
+    except ImportError:
+        pass  # torch resolved lazily by the model builders; skip the check if absent here
 
 
 def vit_builder():
@@ -117,6 +116,9 @@ def distilbert_builder():
             reviews.append(tok.decode(ids))
         if len(reviews) >= N_INST:
             break
+    if len(reviews) < N_INST:
+        msg = f"only {len(reviews)} reviews reached {EXCERPT_TOKENS} tokens; need {N_INST}"
+        raise RuntimeError(msg)
 
     def build(i):
         g = SentimentAnalysis(input_text=reviews[i], device=0, verbose=False)
@@ -127,10 +129,11 @@ def distilbert_builder():
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--vf", required=True, choices=["vit16", "distilbert"])
-    ap.add_argument("--variant", default="v522_merged", choices=["v522_merged", "v560_improved", "library"])
+    ap.add_argument("--variant", default="v522_merged", choices=VARIANT_CHOICES)
     ap.add_argument("--start", type=int, default=0)
     ap.add_argument("--end", type=int, default=N_INST)
     args = ap.parse_args()
+    _require_gpu()
     build = vit_builder() if args.vf == "vit16" else distilbert_builder()
 
     for i in range(max(0, args.start), min(args.end, N_INST)):
@@ -144,12 +147,16 @@ def main() -> None:
                 print(f"PARTIAL_T1 {args.vf} {e} {i} {b1} {mse:.6e}", flush=True)
             except (ValueError, RuntimeError):
                 pass
-        # Figure 2
+        # Figure 2 (MSE vs budget) + Figure 5 (runtime vs budget)
         for b in log_budgets(n):
             for e in EST:
                 try:
-                    mse = float(np.mean((singles(make(e, n, args.variant).approximate(b, game), n) - gt) ** 2))
+                    t0 = time.perf_counter()
+                    iv = make(e, n, args.variant).approximate(b, game)
+                    dt = time.perf_counter() - t0
+                    mse = float(np.mean((singles(iv, n) - gt) ** 2))
                     print(f"PARTIAL_F2 {args.vf} {e} {i} {b} {mse:.6e}", flush=True)
+                    print(f"PARTIAL_RT {args.vf} {e} {i} {b} {dt:.6e}", flush=True)
                 except (ValueError, RuntimeError):
                     pass
         # Figure 4 / 11 — eta at three budgets
@@ -160,10 +167,9 @@ def main() -> None:
                     print(f"PARTIAL_ETA {args.vf} {et} {i} {budget} {mse:.6e}", flush=True)
                 except (ValueError, RuntimeError):
                     pass
-            base = load_oddshap(args.variant)(n=n, random_state=0, interaction_factor=10)
-            base._select_odd_interactions = lambda **kw: []  # noqa: SLF001
             try:
-                mse = float(np.mean((singles(base.approximate(budget, game), n) - gt) ** 2))
+                iv0 = interaction_free_oddshap(n, oddshap_variant=args.variant).approximate(budget, game)
+                mse = float(np.mean((singles(iv0, n) - gt) ** 2))
                 print(f"PARTIAL_ETA {args.vf} base {i} {budget} {mse:.6e}", flush=True)
             except (ValueError, RuntimeError):
                 pass
