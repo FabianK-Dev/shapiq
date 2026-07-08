@@ -66,10 +66,16 @@ def load_paper_fig2(vf: str):
 
 
 def paper_figure_path(vf: str, kind: str = "fig2") -> Path | None:
-    """Path to the paper's original figure PNG for a value function, if present."""
-    pvf = PAPER_VF_ALIAS.get(vf, vf)
-    p = paper_dir() / "figures" / f"paper_{kind}_{pvf}.png"
-    return p if p.exists() else None
+    """Path to the paper's original figure PNG for a value function, if present.
+
+    Our PNGs are saved under the full VF id (paper_fig2_realestate.png), but the paper's
+    own short aliases (estate/cg60/il60) are also accepted — try both, full name first.
+    """
+    for name in (vf, PAPER_VF_ALIAS.get(vf, vf)):
+        p = paper_dir() / "figures" / f"paper_{kind}_{name}.png"
+        if p.exists():
+            return p
+    return None
 
 
 def paper_legend_path() -> Path | None:
