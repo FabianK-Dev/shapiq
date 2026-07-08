@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import threading
 import time
 from dataclasses import dataclass, field, asdict
@@ -29,8 +30,9 @@ from queue import Queue, Empty
 
 import paramiko
 
-REMOTE_REPO = "/root/autodl-tmp/oddshap_reproduction"
+REMOTE_REPO = "/root/oddshap_reproduction"        # system disk, so an AutoDL image includes it
 REMOTE_PY = "/root/miniconda3/bin/python"
+LOCAL_REPRO = Path(__file__).resolve().parents[1]   # local reproduction/ dir to push
 GPU_VFS = ["distilbert", "vit16"]     # distilbert first (lighter GT) so results land sooner
 # per-instance forward-pass weight, used only for the *initial* ETA before real timings arrive
 _VF_WEIGHT = {"distilbert": 1.0, "vit16": 1.6}
@@ -66,10 +68,12 @@ class MachineState:
 
 class Fleet:
     def __init__(self, machines, variants, experiments, instances, outdir, hf_mirror=True,
-                 per_gpu=1):
+                 per_gpu=1, sync_code=True, eta_budgets=None):
         self.machines = machines
         self.experiments = experiments
         self.per_gpu = per_gpu               # concurrent instances per GPU (saturate a small model)
+        self.sync_code = sync_code
+        self.eta_budgets = eta_budgets       # e.g. [10000] for the reduced Fig4-only run
         self.outdir = Path(outdir)
         self.outdir.mkdir(parents=True, exist_ok=True)
         self.hf_mirror = hf_mirror
@@ -95,14 +99,36 @@ class Fleet:
         c.connect(m["host"], port=m["port"], username=m["user"], password=m["password"], timeout=30)
         return c
 
+    def _sync_code(self, m):
+        """SFTP the local reproduction/ tree to the machine (GitHub is unreliable on the
+        China cloud boxes). Runs once per machine before its workers start."""
+        c = self._connect(m)
+        sf = c.open_sftp()
+        remote_root = f"{REMOTE_REPO}/reproduction"
+
+        def _put(local: Path, remote: str):
+            c.exec_command(f"mkdir -p {remote}")[1].read()
+            for name in os.listdir(local):
+                if name in ("__pycache__", "out", "data"):
+                    continue
+                lp = local / name; rp = f"{remote}/{name}"
+                if lp.is_dir():
+                    _put(lp, rp)
+                elif name.endswith((".py", ".sh")):
+                    sf.put(str(lp), rp)
+
+        _put(LOCAL_REPRO, remote_root)
+        sf.close(); c.close()
+
     def _run_job(self, c, job: Job) -> tuple[bool, str]:
         hf = "HF_ENDPOINT=https://hf-mirror.com " if self.hf_mirror else ""
         exp = " ".join(self.experiments)
+        eta = f" --eta-budgets {' '.join(map(str, self.eta_budgets))}" if self.eta_budgets else ""
         log = f"reproduction/data/gpu_{job.vf}_{job.variant}.log"
         cmd = (f"export PATH={REMOTE_PY.rsplit('/',1)[0]}:$PATH TMPDIR=/tmp {hf}; "
                f"cd {REMOTE_REPO} && mkdir -p reproduction/data && "
                f"{REMOTE_PY} -m reproduction.cluster.train_gpu --vf {job.vf} --variant {job.variant} "
-               f"--start {job.inst} --end {job.inst + 1} --experiments {exp} 2>&1 | tee -a {log}")
+               f"--start {job.inst} --end {job.inst + 1} --experiments {exp}{eta} 2>&1 | tee -a {log}")
         _i, o, e = c.exec_command(cmd, timeout=3600)
         out = o.read().decode(errors="replace") + e.read().decode(errors="replace")
         ok = f"INSTANCE_DONE {job.vf} {job.variant} {job.inst}" in out
@@ -188,11 +214,7 @@ class Fleet:
                 return base * _VF_WEIGHT[vf]
             # total concurrent slots across the fleet = machines x per_gpu
             active = max(1, sum(st.slots for st in self.state.values() if st.status != "offline"))
-            # remaining time = remaining work / parallelism, using per-VF estimates
-            rem_secs_total = 0.0
-            for cell in [f"{vf}/{v}" for vf in GPU_VFS for v in {j.split('/')[1] for j in [self.done_by_cell]}]:
-                pass
-            # simpler: sum remaining per VF
+            # remaining wall time = (sum of remaining per-VF work) / fleet parallelism
             rem_by_vf = {}
             for vf in GPU_VFS:
                 # remaining instances of this vf across variants
@@ -227,6 +249,13 @@ class Fleet:
     def run(self):
         for m in self.machines:
             self.state[m["name"]].slots = self.per_gpu
+        if self.sync_code:
+            print(f"syncing code to {len(self.machines)} machines via SFTP …")
+            for m in self.machines:
+                try:
+                    self._sync_code(m); print(f"  synced {m['name']}")
+                except Exception as exc:
+                    print(f"  WARN sync failed {m['name']}: {exc}")
         sw = threading.Thread(target=self._status_loop, daemon=True); sw.start()
         workers = [threading.Thread(target=self._worker, args=(m, slot), daemon=True)
                    for m in self.machines for slot in range(self.per_gpu)]
@@ -260,16 +289,20 @@ def main():
     ap.add_argument("--experiments", nargs="+", default=["table1", "eta"])
     ap.add_argument("--instances", type=int, default=30)
     ap.add_argument("--outdir", default="reproduction/fleet/out")
-    ap.add_argument("--per-gpu", type=int, default=4,
-                    help="concurrent instances per GPU (saturate a small model; 4-6 typical)")
+    ap.add_argument("--per-gpu", type=int, default=6,
+                    help="concurrent instances per GPU (6 saturates a 3080 Ti on these small models)")
+    ap.add_argument("--eta-budgets", nargs="+", type=int, default=None,
+                    help="restrict eta ablation budgets, e.g. 10000 for the reduced Fig4-only run")
     ap.add_argument("--no-hf-mirror", action="store_true")
+    ap.add_argument("--no-sync-code", action="store_true", help="skip SFTP code push (clones already current)")
     a = ap.parse_args()
     machines = parse_machines(a.machines)
     njobs = len(a.variants) * len(GPU_VFS) * a.instances
     print(f"fleet: {len(machines)} machines x {a.per_gpu}/gpu = {len(machines)*a.per_gpu} slots, "
-          f"{njobs} jobs, experiments={a.experiments}")
+          f"{njobs} jobs, experiments={a.experiments}, eta_budgets={a.eta_budgets or 'all'}")
     Fleet(machines, a.variants, a.experiments, a.instances, a.outdir,
-          hf_mirror=not a.no_hf_mirror, per_gpu=a.per_gpu).run()
+          hf_mirror=not a.no_hf_mirror, per_gpu=a.per_gpu,
+          sync_code=not a.no_sync_code, eta_budgets=a.eta_budgets).run()
 
 
 if __name__ == "__main__":

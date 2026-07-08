@@ -8,11 +8,10 @@ export PATH=/root/miniconda3/bin:$PATH
 export HF_ENDPOINT=https://hf-mirror.com          # China-friendly HuggingFace mirror
 [ -f /etc/network_turbo ] && source /etc/network_turbo 2>/dev/null || true
 
-REPO=/root/autodl-tmp/oddshap_reproduction
+REPO=/root/oddshap_reproduction              # system disk → captured by an AutoDL image save
 BRANCH=wu/oddshap-reproduction
 
 # --- code: clone/update; if GitHub is unreachable, keep whatever is already there ---
-mkdir -p /root/autodl-tmp
 if [ ! -d "$REPO/.git" ]; then
   git clone -q https://github.com/FabianK-Dev/shapiq.git "$REPO" || {
     echo "WARN: git clone failed (network) — code must be pushed via SFTP"; }
