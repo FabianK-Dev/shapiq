@@ -90,8 +90,11 @@ except (NameError, AttributeError):
 # under colour vision deficiency):
 #
 # 1. **Ours** — our reproduction: every estimator we run, median line + IQR band.
-# 2. **Paper** — the paper's original Figure-2 panel (its own figure, with the paper's IQR
-#    bands and full method set including LeverageSHAP / 3-PolySHAP, which we do not run).
+# 2. **Paper** — the paper's Figure-2 medians, *redrawn* from the digitised coordinates as a
+#    real axes (so it renders at exactly the same size as panels 1/3 with real ticks/labels;
+#    the authentic paper image lives in `paper_reference/`). Full paper method set including
+#    LeverageSHAP / 3-PolySHAP / Proxy, which we do not run. Per-method IQR bands were not
+#    digitised (only OddSHAP's); the medians + OddSHAP band carry the comparison.
 # 3. **OddSHAP: ours vs paper** — OddSHAP alone, our curve + IQR band (solid) over the paper's
 #    median curve (dashed; the paper's per-curve band edges were not digitised), so the
 #    reproduction fidelity is visible at a glance.
@@ -120,7 +123,7 @@ for vf in TAB_VFS + GPU_VFS:                       # all 8 value functions
     # paper's own method key on top: the extracted per-VF paper panel has no legend of its
     # own (the paper shares one legend across sub-plots), and its colours match our panel (1),
     # so this single strip labels both panels 1 and 2.
-    fig = plt.figure(figsize=(15, 4.3))   # each panel ~0.75 aspect = the paper figures' aspect
+    fig = plt.figure(figsize=(15, 4.8))
     gs = fig.add_gridspec(2, 3, height_ratios=[1, 7], hspace=0.42)
     axl = fig.add_subplot(gs[0, :]); axl.axis("off")
     _leg = R.paper_legend_path()
@@ -165,15 +168,23 @@ for vf in TAB_VFS + GPU_VFS:                       # all 8 value functions
     # paper panel is the authentic figure with the paper's own IQR bands. Match panel (1)'s box
     # to the paper image's aspect so the two sit side-by-side at the same size.
     ax = axes[1]
-    if png is not None:
-        # aspect="auto" makes the paper image fill its panel exactly as our plots fill theirs;
-        # since the figure is sized so each panel is ~0.75 (the paper figures' own aspect), the
-        # image is not stretched, and the paper's plot-within-labels ends up the same physical
-        # size as our labelled plots in panels (1)/(3).
-        ax.imshow(mpimg.imread(str(png)), aspect="auto"); ax.axis("off")
-        ax.set_title("(2) paper (original Fig. 2, with IQR band)")
+    if paper:
+        # Redraw the paper's Figure 2 from its digitised median coordinates as a *real* axes
+        # (not an imshow'd image), so it renders at exactly the same size as panels (1)/(3) and
+        # carries real ticks/labels. Colours match the shared key. Per-method IQR bands were not
+        # digitised (only OddSHAP's, drawn below); the median trends + OddSHAP band carry the
+        # comparison. `png` (the authentic paper image) stays in paper_reference/ for reference.
+        for m, pts in sorted(paper.items()):
+            ax.plot([b for b, _ in pts], [v for _, v in pts], label=m, **R.paper_style(m))
+        if band:
+            bx = [b for b, _, _, _ in band]
+            bq1 = [q1 for _, _, q1, _ in band]; bq3 = [q3 for _, _, _, q3 in band]
+            ax.fill_between(bx, bq1, bq3, color=R.PAPER_COLOR["OddSHAP"], alpha=0.18)
+        ax.set_xscale("log"); ax.set_yscale("log"); ax.grid(True, alpha=0.3)
+        ax.set_xlabel("budget m"); ax.set_ylabel("MSE (paper median)")
+        ax.set_title("(2) paper (Fig. 2 medians, redrawn)"); ax.legend(fontsize=6, ncol=2)
     else:
-        ax.axis("off"); ax.set_title("(2) paper — figure not available")
+        ax.axis("off"); ax.set_title("(2) paper — data not available")
 
     # (3) OddSHAP: ours (median + IQR band) vs paper (median, + band if digitised)
     ax = axes[2]
@@ -198,16 +209,6 @@ for vf in TAB_VFS + GPU_VFS:                       # all 8 value functions
     ax.set_xlabel("budget m"); ax.set_ylabel("MSE (median ± IQR band)")
     ax.set_title("(3) OddSHAP: ours vs paper"); ax.legend(fontsize=7)
 
-    # Size-match: the paper image (panel 2) fills its cell but its *plot* sits inside the
-    # paper's own title/axis-label margins, so it occupies only ~79% x 71% of the cell (measured).
-    # Shrink our plot boxes (panels 1 & 3) to that same fraction of their cells, so all three
-    # plot regions render at the same physical size instead of ours filling more of the cell.
-    if png is not None:
-        PL, PB, PW, PH = 0.184, 0.187, 0.792, 0.709   # paper plot region as fraction of its cell
-        for j in (0, 2):
-            cell = axes[j].get_position()
-            axes[j].set_position([cell.x0 + PL * cell.width, cell.y0 + PB * cell.height,
-                                  PW * cell.width, PH * cell.height])
     fig.suptitle(R.fig_title("Figure 2 — MSE vs budget", vf, VARIANT), y=1.02)
     R.add_banner(fig, banner); plt.show()
 
