@@ -5,9 +5,7 @@
 # paper (Fumagalli et al. 2026) does not make. This notebook presents the ones that are
 # ready to demonstrate, as candidate directions to discuss with the authors / supervisor.
 #
-# Each finding is stated as: **observation → evidence (runnable here) → why it is novel →
-# a paper-shaped angle.** The experiments are small and self-contained (SOUM synthetic
-# games, exact ground truth) so every number is reproduced live in this notebook.
+# Each finding is stated as: **observation → evidence → why it matters → a paper-shaped angle.**
 
 # %%
 import sys
@@ -18,8 +16,6 @@ import numpy as np
 
 sys.path.insert(0, str(Path.cwd() if Path("reproduction").is_dir() else Path.cwd().parent))
 from reproduction.core import report as R
-from shapiq.game_theory.exact import ExactComputer
-from shapiq_games.synthetic import SOUM
 
 # %% [markdown]
 # ## Finding — an ill-conditioned-solve failure class in shapiq (PR #547 + a regression-path sibling)
@@ -119,56 +115,6 @@ else:
 # class as #547, a different subsystem (regression approximators rather than the tree explainer).
 # Note: the paper's Figure 2 contains **neither kADDSHAP nor KernelSHAP**; they are extra baselines we
 # add, which is why the divergence is visible in our reproduction but not in the paper.
-
-# %% [markdown]
-# ## Finding C — the odd decomposition is a *semivalue-family* property
-#
-# **Observation.** OddSHAP rests on the identity `φ_Shapley(f) = φ_Shapley(f_odd)`: the
-# Shapley value depends only on the odd part of the game's Fourier (Walsh) spectrum. Is
-# this special to the Shapley value, or a property of the whole semivalue family?
-#
-# **Evidence.** The **Banzhaf value** — the other canonical semivalue — equals a single
-# first-order Fourier coefficient, `φ_i^Banzhaf = −2·β_{i}`, which is odd by construction.
-# We verify the identity to machine precision on random games below.
-#
-# **Why novel.** The paper proves the odd property for Shapley only; it never observes that
-# the same structure holds across semivalues.
-#
-# **Angle.** *Odd estimators for the semivalue family*: port OddSHAP's paired-sampling +
-# odd-Fourier constrained regression from Shapley to Banzhaf and to arbitrary semivalues.
-# The cross-method benchmark suite transfers as the evaluation harness.
-
-# %%
-def walsh_first_order(game, n):
-    masks = np.array([[(k >> i) & 1 for i in range(n)] for k in range(2 ** n)], dtype=bool)
-    vals = game(masks).astype(float)
-    signs = np.where(masks, -1.0, 1.0)  # present -> -1, absent -> +1 (Walsh convention)
-    return (vals[:, None] * signs).mean(axis=0)
-
-
-print("φ_i^Banzhaf  vs  −2·β_{i}   (max abs deviation over random SOUM games)")
-ns, devs = [], []
-for n in (6, 8, 10, 12):
-    worst = 0.0
-    for seed in range(3):
-        g = SOUM(n=n, n_basis_games=12, max_interaction_size=3, random_state=seed)
-        bv = ExactComputer(game=g, n_players=n)(index="BV", order=1)
-        banzhaf = np.array([float(bv.dict_values.get((i,), 0.0)) for i in range(n)])
-        pred = -2.0 * walsh_first_order(g, n)
-        worst = max(worst, float(np.max(np.abs(banzhaf - pred))))
-    ns.append(n); devs.append(worst)
-    print(f"  n={n:2d}:  max|φ^B − (−2β)| = {worst:.2e}")
-
-fig, ax = plt.subplots(figsize=(6.2, 3.6))
-ax.semilogy(ns, devs, "o-", color="#CC3311")
-ax.axhline(1e-12, color="k", ls="--", lw=0.8, label="machine-precision scale")
-ax.set_xlabel("number of players n"); ax.set_ylabel("max |φ^Banzhaf − (−2β)|")
-ax.set_title("Finding C — Banzhaf value = a first-order odd Fourier coefficient")
-ax.legend(fontsize=8)
-fig.text(0.5, -0.02, "SOUM games, exact ExactComputer(BV) vs empirical Walsh β; deviation at "
-         "machine precision ⇒ identity holds → OddSHAP machinery extends to semivalues",
-         ha="center", va="top", fontsize=6.5, color="#555")
-fig.tight_layout(); plt.show()
 
 # %% [markdown]
 # ## Finding A/G — screening-basis consistency and constraint robustness
