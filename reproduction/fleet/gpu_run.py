@@ -61,9 +61,9 @@ def shard_name(vf, var, s, e):
     return f"shard_{vf}_{var}_{s}_{e}"
 
 
-def build_shards():
+def build_shards(cells=CELLS):
     shards = []
-    for vf, var in CELLS:
+    for vf, var in cells:
         for s in range(0, N_INST, SHARD):
             shards.append((vf, var, s, min(s + SHARD, N_INST)))
     return shards
@@ -77,7 +77,7 @@ def assign(shards, machines):
     return a
 
 
-def launch(machines, assignment, experiments):
+def launch(machines, assignment, experiments, extra=""):
     exp = " ".join(experiments)
     for m in machines:
         c = connect(m)
@@ -85,18 +85,21 @@ def launch(machines, assignment, experiments):
         run(c, f"mkdir -p {REMOTE_REPO}/reproduction/data")
         for vf, var, s, e in assignment[m["name"]]:
             log = f"reproduction/data/{shard_name(vf, var, s, e)}.log"
-            cmd = (f"cd {REMOTE_REPO} && "
+            # setsid + redirect all three streams away from the channel so exec_command
+            # returns immediately and the job survives this connection closing.
+            cmd = (f"cd {REMOTE_REPO}; "
                    f"HF_ENDPOINT=https://hf-mirror.com HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 "
                    f"TMPDIR=/tmp OMP_NUM_THREADS=8 OPENBLAS_NUM_THREADS=8 MKL_NUM_THREADS=8 "
-                   f"nohup {REMOTE_PY} -m reproduction.cluster.train_gpu --vf {vf} --variant {var} "
-                   f"--start {s} --end {e} --experiments {exp} > {log} 2>&1 &")
-            run(c, cmd)
+                   f"setsid {REMOTE_PY} -m reproduction.cluster.train_gpu --vf {vf} --variant {var} "
+                   f"--start {s} --end {e} --experiments {exp}{extra} > {log} 2>&1 < /dev/null &")
+            c.exec_command(cmd)          # fire and forget — do NOT read (would block on the &)
+            time.sleep(0.4)
         print(f"launched {len(assignment[m['name']])} shards on {m['name']}", flush=True)
+        time.sleep(1)
         c.close()
 
 
-def poll(machines, shards, interval=20):
-    total = len(CELLS) * N_INST
+def poll(machines, total, interval=20):
     start = None
     while True:
         done = 0
@@ -146,19 +149,30 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--machines", default="reproduction/cluster/machines.txt")
     ap.add_argument("--experiments", nargs="+", default=["table1", "fig2", "eta"])
+    ap.add_argument("--eta-budgets", nargs="+", type=int, default=None)
+    ap.add_argument("--fig2-max-budget", type=int, default=None)
+    ap.add_argument("--only-vf", default=None, choices=["vit16", "distilbert"],
+                    help="restrict to one value function's cells (e.g. re-run just ViT)")
     ap.add_argument("--poll-only", action="store_true")
     ap.add_argument("--pull", action="store_true")
     a = ap.parse_args()
     machines = parse_machines(a.machines)
-    shards = build_shards()
+    cells = [c for c in CELLS if a.only_vf is None or c[0] == a.only_vf]
+    shards = build_shards(cells)
+    total = len(cells) * N_INST
     if a.pull:
         pull(machines); return
     if not a.poll_only:
         assignment = assign(shards, machines)
-        print(f"{len(shards)} shards over {len(machines)} machines "
-              f"({len(shards)//len(machines)}/box), {len(CELLS)*N_INST} instances", flush=True)
-        launch(machines, assignment, a.experiments)
-    poll(machines, shards)
+        extra = ""
+        if a.eta_budgets:
+            extra += " --eta-budgets " + " ".join(map(str, a.eta_budgets))
+        if a.fig2_max_budget:
+            extra += f" --fig2-max-budget {a.fig2_max_budget}"
+        print(f"{len(shards)} shards over {len(machines)} machines, {total} instances "
+              f"(vf={a.only_vf or 'all'}) · opts:{extra or 'full'}", flush=True)
+        launch(machines, assignment, a.experiments, extra)
+    poll(machines, total)
     pull(machines)
 
 

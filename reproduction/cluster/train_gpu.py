@@ -181,6 +181,9 @@ def main() -> None:
                     help="which experiments to run per instance (split for short backfill jobs)")
     ap.add_argument("--eta-budgets", nargs="+", type=int, default=None,
                     help="restrict the eta ablation to these budgets (default: all of ETA_BUDGETS)")
+    ap.add_argument("--fig2-max-budget", type=int, default=None,
+                    help="cap the Figure-2 budget grid (OddSHAP's regression is O(budget*features^2) "
+                         "at high budget; cap keeps the run tractable)")
     args = ap.parse_args()
     _require_gpu()
     exp = set(args.experiments)
@@ -207,7 +210,9 @@ def main() -> None:
         # the approximator's own sampling+solve cost, NOT the deep-model eval time. For a
         # paper-faithful Fig. 5 (total wall-clock incl. model forwards) time a few budgets
         # against `model_game` instead.
-        for b in (log_budgets(n) if "fig2" in exp else []):
+        fig2_budgets = [b for b in log_budgets(n)
+                        if args.fig2_max_budget is None or b <= args.fig2_max_budget]
+        for b in (fig2_budgets if "fig2" in exp else []):
             for e in EST:
                 try:
                     t0 = time.perf_counter()
