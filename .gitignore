@@ -201,3 +201,7 @@ docs/source/gen_modules/
 
 # Local debug / scratch scripts (not public)
 scripts/
+
+# credentials (never commit)
+reproduction/cluster/machines.txt
+reproduction/cluster/sshkey

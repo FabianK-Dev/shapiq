@@ -36,6 +36,36 @@ from reproduction.core.constants import ESTIMATORS as EST
 from reproduction.core.constants import ETA_BUDGETS, ETAS, VARIANT_CHOICES
 from reproduction.core.harness import interaction_free_oddshap, load_oddshap, log_budgets, make_estimator, sfv
 
+class LookupGame:
+    """Serve game values from the exact 2**n table the ground truth already built.
+
+    ``ExactComputer`` evaluates the deep model on *every* coalition to compute the exact
+    Shapley GT. Every approximator, at every budget, only ever queries coalitions from that
+    same powerset — so instead of re-running the model (hundreds of thousands of forward
+    passes per instance) we hand the approximators a dict lookup into the GT's table. The
+    approximators still see only their own sampled subset, so every MSE is bit-for-bit
+    identical; the deep model just runs once per instance (the 2**n GT) instead of ~30x.
+    """
+
+    def __init__(self, coalition_lookup, game_values, n, base=None):
+        self._base = base
+        self.n = n
+        self._powers = (1 << np.arange(n)).astype(np.int64)
+        self._mask_to_val = {
+            int(sum(1 << p for p in key)): float(game_values[idx])
+            for key, idx in coalition_lookup.items()
+        }
+
+    def __call__(self, coalitions):
+        c = np.atleast_2d(np.asarray(coalitions)).astype(np.int64)
+        masks = c @ self._powers
+        m2v = self._mask_to_val
+        return np.array([m2v[int(mk)] for mk in masks], dtype=float)
+
+    def __getattr__(self, name):  # delegate any other attribute to the real game
+        return getattr(object.__getattribute__(self, "_base"), name)
+
+
 N_INST = 30
 # Repo root that holds src/shapiq_games/... — the cluster clone, or (for a local GPU run)
 # walk up from this file until src/shapiq_games is found.
@@ -158,8 +188,11 @@ def main() -> None:
     build = vit_builder() if args.vf == "vit16" else distilbert_builder()
 
     for i in range(max(0, args.start), min(args.end, N_INST)):
-        game, n = build(i)
-        gt = singles(ExactComputer(game=game, n_players=n)(index="SV"), n)
+        model_game, n = build(i)
+        ec = ExactComputer(game=model_game, n_players=n)   # evaluates the model on all 2**n
+        gt = singles(ec(index="SV"), n)
+        # every approximator below reads from the exact table, not the deep model
+        game = LookupGame(ec.coalition_lookup, ec.game_values, n, base=model_game)
         # Table 1
         b1 = max(n + 1, 100 * n)
         if "table1" in exp:
@@ -170,6 +203,10 @@ def main() -> None:
                 except (ValueError, RuntimeError):
                     pass
         # Figure 2 (MSE vs budget) + Figure 5 (runtime vs budget)
+        # NOTE: PARTIAL_RT here times approximate() against the CACHED game, so it measures
+        # the approximator's own sampling+solve cost, NOT the deep-model eval time. For a
+        # paper-faithful Fig. 5 (total wall-clock incl. model forwards) time a few budgets
+        # against `model_game` instead.
         for b in (log_budgets(n) if "fig2" in exp else []):
             for e in EST:
                 try:

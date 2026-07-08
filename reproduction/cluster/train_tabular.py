@@ -42,6 +42,46 @@ from reproduction.core.harness import (
 )
 
 
+class CachedGame:
+    """Lazily memoise game evaluations by coalition.
+
+    The budget sweep re-runs every approximator from scratch at each budget, and the
+    interaction-free ground truth does not hand us a full game table (unlike the GPU
+    path). So we cache each coalition's value the first time any approximator (at any
+    budget) asks for it; every later request for the same coalition is a dict lookup.
+    Results are bit-for-bit identical — only the (repeated) game calls are skipped. Keyed
+    by the coalition's raw bytes, so it is correct for any number of players. **Do not use
+    for the runtime figure** (Fig. 5), whose whole point is to time the real game calls.
+    """
+
+    def __init__(self, game):
+        self._game = game
+        self._cache: dict[bytes, float] = {}
+        self.hits = 0
+        self.misses = 0
+
+    def __call__(self, coalitions):
+        c = np.atleast_2d(np.asarray(coalitions)).astype(bool)
+        out = np.empty(len(c), dtype=float)
+        miss_rows, miss_idx = [], []
+        for i, row in enumerate(c):
+            v = self._cache.get(row.tobytes())
+            if v is None:
+                miss_rows.append(row); miss_idx.append(i)
+            else:
+                out[i] = v; self.hits += 1
+        if miss_rows:
+            vals = np.asarray(self._game(np.asarray(miss_rows)), dtype=float)
+            for j, i in enumerate(miss_idx):
+                out[i] = vals[j]
+                self._cache[c[i].tobytes()] = vals[j]
+            self.misses += len(miss_rows)
+        return out
+
+    def __getattr__(self, name):  # delegate anything else to the real game
+        return getattr(object.__getattribute__(self, "_game"), name)
+
+
 def _write(path: Path, header, rows):
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", newline="", encoding="utf-8") as f:
@@ -54,7 +94,7 @@ def _write(path: Path, header, rows):
 # --- per-instance workers (picklable: receive arrays, not the tree explainer) --- #
 def _mse_row(target, truth, model, bg, n, is_clf, budget, variant):
     from reproduction.core.harness import make_game  # local import for the loky worker
-    game = make_game(model, bg, target, is_classifier=is_clf)
+    game = CachedGame(make_game(model, bg, target, is_classifier=is_clf))  # cross-estimator reuse
     out = {}
     for est in ESTIMATORS:
         try:
@@ -84,16 +124,36 @@ def run_table1(vf, truths, n_instances, jobs, variant, out: Path):
     _write(out / f"table1_{vf.name}_{variant}.csv", SCHEMA_TABLE1, rows)
 
 
+def _fig2_instance(target, truth, model, bg, n, is_clf, budgets, variant):
+    """All budgets x estimators for one instance, sharing one cached game so a coalition
+    sampled at several budgets is evaluated once. Returns {(budget, est): mse}."""
+    from reproduction.core.harness import make_game  # local import for the loky worker
+    game = CachedGame(make_game(model, bg, target, is_classifier=is_clf))
+    res = {}
+    for b in budgets:
+        for est in ESTIMATORS:
+            try:
+                iv = make_estimator(est, n, oddshap_variant=variant).approximate(b, game)
+                res[(b, est)] = float(np.mean((sfv(iv, n) - truth) ** 2))
+            except (ValueError, RuntimeError):
+                res[(b, est)] = float("inf")
+    res["_cache"] = (game.hits, game.misses)
+    return res
+
+
 def run_fig2(vf, truths, jobs, variant, out: Path):
     budgets = log_budgets(vf.n)
+    per = Parallel(n_jobs=jobs, backend="loky")(
+        delayed(_fig2_instance)(vf.x_test[i], truths[i], vf.model, vf.background, vf.n,
+                                vf.is_classifier, budgets, variant)
+        for i in range(len(truths)))
+    hits = sum(p["_cache"][0] for p in per); miss = sum(p["_cache"][1] for p in per)
+    print(f"  fig2 cache: {hits}/{hits + miss} coalition evals served from cache "
+          f"({100 * hits / max(1, hits + miss):.0f}% hit)", flush=True)
     rows = []
     for b in budgets:
-        per = Parallel(n_jobs=jobs, backend="loky")(
-            delayed(_mse_row)(vf.x_test[i], truths[i], vf.model, vf.background, vf.n,
-                              vf.is_classifier, b, variant)
-            for i in range(len(truths)))
         for est in ESTIMATORS:
-            vals = np.array([p[est] for p in per], dtype=float)
+            vals = np.array([p[(b, est)] for p in per], dtype=float)
             finite = vals[np.isfinite(vals)]
             if finite.size:
                 rows.append((vf.name, est, variant, b, len(truths),
@@ -102,35 +162,43 @@ def run_fig2(vf, truths, jobs, variant, out: Path):
     _write(out / f"fig2_{vf.name}_{variant}.csv", SCHEMA_FIG2, rows)
 
 
-def _eta_row(target, truth, model, bg, n, is_clf, budget, variant):
+def _eta_instance(target, truth, model, bg, n, is_clf, budgets, variant):
+    """All eta budgets x factors for one instance, sharing one cached game.
+    Returns {(budget, e|'base'): mse}."""
     from reproduction.core.harness import interaction_free_oddshap, load_oddshap, make_game
     OddSHAP = load_oddshap(variant)
-    game = make_game(model, bg, target, is_classifier=is_clf)
-    out = {}
-    for e in ETAS:
+    game = CachedGame(make_game(model, bg, target, is_classifier=is_clf))
+    res = {}
+    for budget in budgets:
+        for e in ETAS:
+            try:
+                iv = OddSHAP(n=n, random_state=0, interaction_factor=e).approximate(budget, game)
+                res[(budget, e)] = float(np.mean((sfv(iv, n) - truth) ** 2))
+            except (ValueError, RuntimeError):
+                res[(budget, e)] = float("nan")
         try:
-            iv = OddSHAP(n=n, random_state=0, interaction_factor=e).approximate(budget, game)
-            out[e] = float(np.mean((sfv(iv, n) - truth) ** 2))
+            iv0 = interaction_free_oddshap(n, oddshap_variant=variant).approximate(budget, game)
+            res[(budget, "base")] = float(np.mean((sfv(iv0, n) - truth) ** 2))
         except (ValueError, RuntimeError):
-            out[e] = float("nan")
-    try:
-        iv0 = interaction_free_oddshap(n, oddshap_variant=variant).approximate(budget, game)
-        out["base"] = float(np.mean((sfv(iv0, n) - truth) ** 2))
-    except (ValueError, RuntimeError):
-        out["base"] = float("nan")
-    return out
+            res[(budget, "base")] = float("nan")
+    res["_cache"] = (game.hits, game.misses)
+    return res
 
 
 def run_eta(vf, truths, jobs, variant, out: Path):
+    budgets = list(ETA_BUDGETS)
+    per = Parallel(n_jobs=jobs, backend="loky")(
+        delayed(_eta_instance)(vf.x_test[i], truths[i], vf.model, vf.background, vf.n,
+                               vf.is_classifier, budgets, variant)
+        for i in range(len(truths)))
+    hits = sum(p["_cache"][0] for p in per); miss = sum(p["_cache"][1] for p in per)
+    print(f"  eta cache: {hits}/{hits + miss} coalition evals served from cache "
+          f"({100 * hits / max(1, hits + miss):.0f}% hit)", flush=True)
     rows = []
-    for budget in ETA_BUDGETS:
-        per = Parallel(n_jobs=jobs, backend="loky")(
-            delayed(_eta_row)(vf.x_test[i], truths[i], vf.model, vf.background, vf.n,
-                              vf.is_classifier, budget, variant)
-            for i in range(len(truths)))
-        base_med = float(np.nanmedian([p["base"] for p in per]))
+    for budget in budgets:
+        base_med = float(np.nanmedian([p[(budget, "base")] for p in per]))
         for e in ETAS:
-            vals = np.array([p[e] for p in per], dtype=float)
+            vals = np.array([p[(budget, e)] for p in per], dtype=float)
             med = float(np.nanmedian(vals))
             q1 = float(np.nanquantile(vals, 0.25)); q3 = float(np.nanquantile(vals, 0.75))
             b = base_med if base_med else float("nan")
