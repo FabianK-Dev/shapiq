@@ -220,50 +220,83 @@ for vf in TAB_VFS + GPU_VFS:                       # all 8 value functions
 #
 # MSE ratio vs the interaction-free baseline (median ± IQR band), at three fixed budgets
 # (Figure 4 = 10,000; Figure 11 = 5,000 / 20,000). U-shape: adding odd interactions helps,
-# then over-fits. Estate excluded (paper). Two panels per budget where the paper figure is
-# available: **(1) ours** (each value function a distinct colour + marker + line style, with
-# its IQR band) and **(2) the paper's original panel** (its own median ± IQR bands). Each
-# value function's band shows the spread over the 30 instances.
+# then over-fits. Estate excluded (paper). For Figure 4 (m=10,000), **panel (2) is the paper's
+# Figure 4 redrawn from its digitised curves onto axes identical to ours** — same categorical
+# x-axis (0 / 200 / 1,000 / 2,000 / 5,000 interactions, with η), same log y-axis and labels,
+# same colours — so the two panels are pixel-for-pixel comparable.
 #
 # > **Baseline & colours.** The MSE ratio is normalised by the **interaction-free baseline**
-# > (the paper's Figure 4 uses LeverageSHAP for this). The paper's Figure 4 *does* carry a
-# > per-VF legend (DistilBERT, ViT16, Cancer, CG60, IL60, NHANES, Crime); our panel (1) colours
-# > are aligned to it, except the paper's Cancer=red / ViT16=green pair is swapped to
-# > colour-blind-safe hues (redundant markers keep every VF distinct). All value functions show
-# > the same **U-shape** — odd interactions help, then over-fit — with Cancer lowest (≈1/100).
+# > (the paper's Figure 4 uses LeverageSHAP for this; ratio = 1 at 0 interactions). Line colours
+# > follow the paper's Figure-4 legend (DistilBERT, ViT16, Cancer, CG60, IL60, NHANES, Crime),
+# > except the paper's Cancer=red / ViT16=green pair is swapped to colour-blind-safe hues, applied
+# > identically to **both** panels. All value functions show the same **U-shape** — odd
+# > interactions help, then over-fit — with Cancer lowest (≈1/100). The paper's original vector
+# > figure is kept in `paper_reference/figures/` for provenance.
 
 # %%
+import math
+
+_ETAS4 = [50, 10, 5, 2]                              # eta values (interaction sparsity)
+XPOS4 = list(range(5))                               # evenly-spaced categorical x positions
+VFS4 = [vf for vf in TAB_VFS + GPU_VFS if vf != "realestate"]   # Estate excluded, as in the paper
+
+
+def _fig4_xlabels(budget):
+    # 0 interactions (baseline), then ceil(m/eta) for each eta — the paper's own x labels
+    return ["0"] + [f"{math.ceil(budget / e):,}\n($\\eta$={e})" for e in _ETAS4]
+
+
 for budget, label in [(10_000, "Figure 4"), (5_000, "Figure 11a"), (20_000, "Figure 11c")]:
-    png = R.paper_figure_path("ablation", "fig4") if budget == 10_000 else None
-    ncol = 2 if png is not None else 1
-    fig, axes = plt.subplots(1, ncol, figsize=(7.4 * ncol, 4.4), squeeze=False)
+    paper4 = R.load_paper_fig4(VFS4) if budget == 10_000 else None   # paper panel only for Fig 4 (m=10000)
+    ncol = 2 if paper4 else 1
+    fig, axes = plt.subplots(1, ncol, figsize=(5.7 * ncol, 4.6), squeeze=False)
+    xlab = _fig4_xlabels(budget)
+    allv = []
+
+    # (1) ours — MSE ratio vs the interaction-free baseline, one line per value function
     ax = axes[0][0]
     any_pts = False
-    for vf in TAB_VFS + GPU_VFS:
-        if vf == "realestate":
-            continue
-        pts = R.load_eta(vf, VARIANT, budget)
+    for vf in VFS4:
+        pts = R.load_eta(vf, VARIANT, budget)        # [(n_int, ratio_med, ratio_q1, ratio_q3)] for eta 50,10,5,2
         if not pts:
             continue
         any_pts = True
-        xs = [p[0] for p in pts]
-        med = [p[1] for p in pts]; q1 = [p[2] for p in pts]; q3 = [p[3] for p in pts]
-        st = R.paper_vf_style(vf)          # colours aligned to the paper's Fig. 4 legend
-        ax.plot(xs, med, label=vf, **st)
-        ax.fill_between(xs, q1, q3, color=st["color"], alpha=0.15)
+        med = [1.0] + [p[1] for p in pts]            # position 0 = interaction-free baseline (ratio = 1)
+        q1 = [1.0] + [p[2] for p in pts]; q3 = [1.0] + [p[3] for p in pts]
+        st = R.paper_vf_style(vf)                    # colours aligned to the paper's Fig. 4 legend
+        ax.plot(XPOS4, med, label=R.vf_display(vf), **st)
+        ax.fill_between(XPOS4, q1, q3, color=st["color"], alpha=0.15)
+        allv += [v for v in med + q1 + q3 if v > 0]
     if not any_pts:
         plt.close(fig); continue
-    ax.axhline(1.0, color="black", lw=0.8, ls="--", label="interaction-free baseline")
-    ax.set_xscale("log"); ax.set_yscale("log")
-    ax.set_xlabel(r"number of odd interactions $\lceil m/\eta\rceil$")
-    ax.set_ylabel("MSE ratio (median ± IQR band)")
-    ax.set_title(f"(1) ours — {label}")
-    ax.legend(fontsize=7, ncol=2)
-    if png is not None:
+
+    # (2) paper — the paper's Figure 4 redrawn from the digitised curves onto identical axes
+    panels = [(ax, f"(1) ours — {label}")]
+    if paper4:
         axp = axes[0][1]
-        axp.imshow(mpimg.imread(str(png))); axp.axis("off")
-        axp.set_title("(2) paper (original Fig. 4, with per-VF legend + IQR band)")
-    fig.suptitle(R.fig_title(f"{label} — η ablation", "7 VFs", VARIANT, f"m={budget:,}"), y=1.02)
+        for vf in VFS4:
+            curve = paper4.get(vf)
+            if not curve:
+                continue
+            med = [c[2] for c in curve]; q1 = [c[3] for c in curve]; q3 = [c[4] for c in curve]
+            med[0] = q1[0] = q3[0] = 1.0             # snap baseline to exactly 1.0
+            st = R.paper_vf_style(vf)
+            axp.plot(XPOS4, med, label=R.vf_display(vf), **st)
+            axp.fill_between(XPOS4, q1, q3, color=st["color"], alpha=0.15)
+            allv += [v for v in med + q1 + q3 if v > 0]
+        panels.append((axp, "(2) paper (Fig. 4, redrawn from the paper's curves)"))
+
+    ylo, yhi = min(allv) / 2, max(allv) * 2          # shared y-limits so the two panels align exactly
+    for a, ttl in panels:
+        a.set_yscale("log"); a.set_ylim(ylo, yhi)
+        a.set_xticks(XPOS4); a.set_xticklabels(xlab, fontsize=7)
+        a.axhline(1.0, color="black", lw=0.9)        # interaction-free baseline reference
+        a.grid(True, alpha=0.3)
+        a.set_xlabel("Number of Odd Interactions")
+        a.set_ylabel("MSE Ratio (Median $\\pm$ IQR Band)")
+        a.set_title(ttl); a.legend(fontsize=6, ncol=2)
+
+    fig.suptitle(R.fig_title(f"{label} — $\\eta$ ablation", f"{len(VFS4)} VFs", VARIANT, f"m={budget:,}"), y=1.02)
     R.add_banner(fig, BANNER_TAB); plt.show()
 
 # %% [markdown]

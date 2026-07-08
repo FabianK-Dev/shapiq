@@ -65,6 +65,38 @@ def load_paper_fig2(vf: str):
     return {m: sorted(v) for m, v in out.items()} or None
 
 
+def load_paper_fig4(vfs=None):
+    """Paper's digitised Figure-4 eta-ablation curves, per value function:
+    {vf: [(position, n_interactions, median, q1, q3), ...]} at positions 0..4
+    (0 interactions=baseline, then eta=50/10/5/2). Estate is excluded, as in the paper's
+    published Figure 4. Optionally restrict to ``vfs``."""
+    path = paper_dir() / "paper_fig4_extracted.csv"
+    if not path.exists():
+        return None
+    out: dict = {}
+    with open(path, newline="", encoding="utf-8") as f:
+        for r in csv.DictReader(f):
+            vf = r["value_function"]
+            if vfs is not None and vf not in vfs:
+                continue
+            out.setdefault(vf, []).append(
+                (int(r["position"]), int(r["n_interactions"]),
+                 float(r["median"]), float(r["q1"]), float(r["q3"])))
+    return {vf: sorted(v) for vf, v in out.items()} or None
+
+
+# short display names matching the paper's own figure legends
+PAPER_VF_DISPLAY = {
+    "distilbert": "DistilBERT", "vit16": "ViT16", "cancer": "Cancer",
+    "corrgroups60": "CG60", "independentlinear60": "IL60", "nhanes": "NHANES",
+    "crime": "Crime", "realestate": "Estate",
+}
+
+
+def vf_display(vf: str) -> str:
+    return PAPER_VF_DISPLAY.get(vf, vf)
+
+
 def paper_figure_path(vf: str, kind: str = "fig2") -> Path | None:
     """Path to the paper's original figure PNG for a value function, if present.
 
