@@ -198,6 +198,16 @@ for vf in TAB_VFS + GPU_VFS:                       # all 8 value functions
     ax.set_xlabel("budget m"); ax.set_ylabel("MSE (median ± IQR band)")
     ax.set_title("(3) OddSHAP: ours vs paper"); ax.legend(fontsize=7)
 
+    # Size-match: the paper image (panel 2) fills its cell but its *plot* sits inside the
+    # paper's own title/axis-label margins, so it occupies only ~79% x 71% of the cell (measured).
+    # Shrink our plot boxes (panels 1 & 3) to that same fraction of their cells, so all three
+    # plot regions render at the same physical size instead of ours filling more of the cell.
+    if png is not None:
+        PL, PB, PW, PH = 0.184, 0.187, 0.792, 0.709   # paper plot region as fraction of its cell
+        for j in (0, 2):
+            cell = axes[j].get_position()
+            axes[j].set_position([cell.x0 + PL * cell.width, cell.y0 + PB * cell.height,
+                                  PW * cell.width, PH * cell.height])
     fig.suptitle(R.fig_title("Figure 2 — MSE vs budget", vf, VARIANT), y=1.02)
     R.add_banner(fig, banner); plt.show()
 
