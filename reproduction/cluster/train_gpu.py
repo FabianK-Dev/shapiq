@@ -149,9 +149,12 @@ def main() -> None:
     ap.add_argument("--experiments", nargs="+", default=["table1", "fig2", "eta"],
                     choices=["table1", "fig2", "eta"],
                     help="which experiments to run per instance (split for short backfill jobs)")
+    ap.add_argument("--eta-budgets", nargs="+", type=int, default=None,
+                    help="restrict the eta ablation to these budgets (default: all of ETA_BUDGETS)")
     args = ap.parse_args()
     _require_gpu()
     exp = set(args.experiments)
+    eta_budgets = args.eta_budgets if args.eta_budgets else ETA_BUDGETS
     build = vit_builder() if args.vf == "vit16" else distilbert_builder()
 
     for i in range(max(0, args.start), min(args.end, N_INST)):
@@ -179,7 +182,7 @@ def main() -> None:
                 except (ValueError, RuntimeError):
                     pass
         # Figure 4 / 11 — eta at three budgets
-        for budget in (ETA_BUDGETS if "eta" in exp else []):
+        for budget in (eta_budgets if "eta" in exp else []):
             for et in ETAS:
                 try:
                     mse = float(np.mean((singles(load_oddshap(args.variant)(n=n, random_state=0, interaction_factor=et).approximate(budget, game), n) - gt) ** 2))
