@@ -203,23 +203,39 @@ def average_rank(vfs, variant: str):
     return {e: float(np.mean(v)) for e, v in ranks.items() if v}, used
 
 
-def table3_dataframe(vfs, variant: str):
-    """Table 3 as a styled pandas DataFrame: rows = estimators, cols = 'vf median [Q1,Q3]'.
+def table3_dataframe(vfs, variant: str, statistics=("median", "mean", "std", "q1", "q3")):
+    """Table 3 — summary statistics of Shapley MSE, rows = (estimator, statistic), cols = VF.
 
-    Falls back to a plain dict of strings if pandas is unavailable.
+    Reproduces the paper's Table-3 layout (per-estimator mean/median/q1/q3) and additionally
+    reports the **standard deviation** (``std``), which the paper's own table omits. Falls
+    back to a nested dict of strings if pandas is unavailable.
     """
-    cells = {}
+    # (estimator, statistic) -> {vf_column: value}
+    data: dict = {}
+    est_seen: list = []
+    cols: list = []
     for vf in vfs:
         t = load_table1(vf, variant)
         if not t:
             continue
-        for e, (m, q1, q3, _mean, _std) in t.items():
-            cells.setdefault(e, {})[f"{vf} (d={PAPER_D.get(vf, '?')})"] = f"{m:.2e} [{q1:.1e}, {q3:.1e}]"
-    order = sorted(cells, key=lambda e: (0 if e == "OddSHAP" else 1, e))
+        col = f"{vf} (d={PAPER_D.get(vf, '?')})"
+        cols.append(col)
+        for e, (m, q1, q3, mean, std) in t.items():
+            if e not in est_seen:
+                est_seen.append(e)
+            vals = {"median": m, "mean": mean, "std": std, "q1": q1, "q3": q3}
+            for s in statistics:
+                data.setdefault((e, s), {})[col] = vals[s]
+    order = sorted(est_seen, key=lambda e: (0 if e == "OddSHAP" else 1, e))
     try:
         import pandas as pd
 
-        df = pd.DataFrame({e: cells[e] for e in order}).T
-        return df
+        rows = [(e, s) for e in order for s in statistics]
+        df = pd.DataFrame(index=pd.MultiIndex.from_tuples(rows, names=["estimator", "statistic"]),
+                          columns=cols, dtype=object)
+        for (e, s) in rows:
+            for col, v in data.get((e, s), {}).items():
+                df.loc[(e, s), col] = f"{v:.2e}"
+        return df.fillna("")
     except ImportError:
-        return {e: cells[e] for e in order}
+        return {f"{e}/{s}": data.get((e, s), {}) for e in order for s in statistics}

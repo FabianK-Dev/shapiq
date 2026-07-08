@@ -67,15 +67,19 @@ if avg_rank:
     R.add_banner(fig, BANNER_TAB); plt.show()
 
 # %% [markdown]
-# ## Table 3 — expanded table with spread (median [Q1, Q3])
+# ## Table 3 — summary statistics (median, mean, **std**, Q1, Q3)
 #
-# The paper's Appendix-A Table 3 reports the distribution, not just the mean. Rendered as a
-# styled table so the spread is visible at a glance for every value function.
+# The paper's Table 3 reports mean / median / Q1 / Q3 per estimator and value function. We
+# reproduce that layout and **additionally report the standard deviation (std)** — the paper's
+# table omits it, but it is requested for our write-up. One block of rows per estimator
+# (OddSHAP first); one column per value function.
 
 # %%
 tbl = R.table3_dataframe(TAB_VFS + GPU_VFS, VARIANT)
 try:
-    display(tbl.style.set_caption(f"Table 3 — median [Q1, Q3] of Shapley MSE · {R.VARIANT_LABEL[VARIANT]}"))
+    display(tbl.style.set_caption(
+        f"Table 3 — summary statistics of Shapley MSE (median / mean / std / Q1 / Q3) · "
+        f"{R.VARIANT_LABEL[VARIANT]}"))
 except (NameError, AttributeError):
     print(tbl)
 
