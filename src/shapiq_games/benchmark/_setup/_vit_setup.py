@@ -52,6 +52,7 @@ class ViTModel:
 
         # setup device for model
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self._device = device
 
         # load model
         feature_extractor = ViTImageProcessor.from_pretrained("google/vit-base-patch32-384")
@@ -63,17 +64,17 @@ class ViTModel:
         self._encoder = model.vit.encoder
         self._classifier = model.classifier
 
-        # setup last normalization layer params manually
-        self._norm_weight = NORM_WEIGHT
-        self._norm_bias = NORM_BIAS
+        # setup last normalization layer params manually (must live on the model's device)
+        self._norm_weight = NORM_WEIGHT.to(device)
+        self._norm_bias = NORM_BIAS.to(device)
         self._norm_eps = 1e-12
         self._norm_shape = (768,)
 
         # set mask token of embedding layer to zeros to use `bool_masked_pos` parameter for masking
-        self._embedding_layer.mask_token = nn.Parameter(torch.zeros(1, 1, 768))
+        self._embedding_layer.mask_token = nn.Parameter(torch.zeros(1, 1, 768, device=device))
 
         # run input image through model
-        self._transformed_image = feature_extractor(images=input_image, return_tensors="pt")
+        self._transformed_image = feature_extractor(images=input_image, return_tensors="pt").to(device)
 
         # get original output
         probit_output = self(np.ones(self.n_patches, dtype=bool))
@@ -106,7 +107,9 @@ class ViTModel:
 
         for i in range(n_coalitions):
             coalition = coalitions[i]
-            bool_masked_pos = self._transform_coalition_into_bool_mask(coalition, self.n_patches)
+            bool_masked_pos = self._transform_coalition_into_bool_mask(
+                coalition, self.n_patches
+            ).to(self._device)
             with torch.no_grad():
                 embeddings = self._embedding_layer(
                     **self._transformed_image,
