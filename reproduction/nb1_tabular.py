@@ -123,7 +123,7 @@ for vf in TAB_VFS + GPU_VFS:                       # all 8 value functions
     # paper's own method key on top: the extracted per-VF paper panel has no legend of its
     # own (the paper shares one legend across sub-plots), and its colours match our panel (1),
     # so this single strip labels both panels 1 and 2.
-    fig = plt.figure(figsize=(15, 5.0))
+    fig = plt.figure(figsize=(15, 4.3))   # each panel ~0.75 aspect = the paper figures' aspect
     gs = fig.add_gridspec(2, 3, height_ratios=[1, 7], hspace=0.42)
     axl = fig.add_subplot(gs[0, :]); axl.axis("off")
     _leg = R.paper_legend_path()
@@ -169,11 +169,12 @@ for vf in TAB_VFS + GPU_VFS:                       # all 8 value functions
     # to the paper image's aspect so the two sit side-by-side at the same size.
     ax = axes[1]
     if png is not None:
-        img = mpimg.imread(str(png))
-        ax.imshow(img); ax.axis("off")
+        # aspect="auto" makes the paper image fill its panel exactly as our plots fill theirs;
+        # since the figure is sized so each panel is ~0.75 (the paper figures' own aspect), the
+        # image is not stretched, and the paper's plot-within-labels ends up the same physical
+        # size as our labelled plots in panels (1)/(3).
+        ax.imshow(mpimg.imread(str(png)), aspect="auto"); ax.axis("off")
         ax.set_title("(2) paper (original Fig. 2, with IQR band)")
-        axes[0].set_box_aspect(img.shape[0] / img.shape[1])   # panel (1) matches paper aspect
-        axes[2].set_box_aspect(img.shape[0] / img.shape[1])   # panel (3) too
     else:
         ax.axis("off"); ax.set_title("(2) paper — figure not available")
 
