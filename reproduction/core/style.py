@@ -87,6 +87,10 @@ PAPER_COLOR = {
     "ProxyLGBM": "#B0BEC5", "RegressionMSR": "#3F51B5",
     "3-PolySHAP": "#7CB342", "LeverageSHAP": "#00968A",
     "OddSHAP": "#E64A19",
+    # our-only baselines (the paper's Fig. 2 has neither) — two CVD-safe hues the paper
+    # does not use, so they never collide with a paper method. Without these both fell back
+    # to the default grey and clashed with PermutationSampling.
+    "KernelSHAP": "#CC79A7", "kADDSHAP": "#56B4E9",
 }
 # our-estimator name -> paper legend name (paper uses the full "PermutationSampling")
 PAPER_METHOD_NAME = {"PermSamp": "PermutationSampling", "MSR": "MSR", "SVARM": "SVARM",
@@ -96,10 +100,10 @@ PAPER_VF_ALIAS = {"realestate": "estate", "corrgroups60": "cg60",
                   "independentlinear60": "il60"}
 _PAPER_MARKER = {"MSR": "o", "SVARM": "s", "PermSamp": "^", "PermutationSampling": "^",
                  "RegressionMSR": "P", "ProxyLGBM": "X", "3-PolySHAP": "*",
-                 "LeverageSHAP": "D", "OddSHAP": "o"}
+                 "LeverageSHAP": "D", "OddSHAP": "o", "KernelSHAP": "D", "kADDSHAP": "v"}
 _PAPER_LINESTYLE = {"MSR": ":", "SVARM": "--", "PermSamp": "-.", "PermutationSampling": "-.",
                     "RegressionMSR": "-", "ProxyLGBM": ":", "3-PolySHAP": "--",
-                    "LeverageSHAP": "-.", "OddSHAP": "-"}
+                    "LeverageSHAP": "-.", "OddSHAP": "-", "KernelSHAP": "--", "kADDSHAP": ":"}
 
 
 def paper_style(method: str, *, emphasize: bool = None) -> dict:

@@ -69,6 +69,14 @@ def paper_figure_path(vf: str, kind: str = "fig2") -> Path | None:
     return p if p.exists() else None
 
 
+def paper_legend_path() -> Path | None:
+    """The paper's own Figure-2 legend strip (method name + colour key), if present.
+    Shown above the panels so the paper's original figure (which has no per-panel legend)
+    is decodable — its colours are the same as our paper-aligned reproduction panel."""
+    p = paper_dir() / "figures" / "paper_fig2_legend.png"
+    return p if p.exists() else None
+
+
 def load_paper_oddshap_band(vf: str):
     """Digitised paper OddSHAP IQR band: list of (budget, median, q1, q3), or None.
 
@@ -128,14 +136,24 @@ def load_table1(vf: str, variant: str):
     return out
 
 
-def load_fig2(vf: str, variant: str):
+# A Shapley single-feature MSE is O(1) at worst; values far above this are not a real
+# estimate but a numerically diverged linear solve (e.g. kADDSHAP's normal-equations solve
+# goes near-singular at low budget on high-dim VFs, giving MSE 1e31–1e94). We do NOT hide
+# these — the notebook plots them (they shoot off-scale) and annotates them, because the
+# divergence itself is a finding (a sibling of the TreeSHAP Vandermonde fix, PR #547).
+DIVERGED_MSE = 1e6
+
+
+def load_fig2(vf: str, variant: str, *, drop_diverged: bool = False):
     name = f"fig2_{vf}_{variant}.csv"
     if not has(name):
         return None
     out = {}
     for r in read(name):
-        out.setdefault(r["estimator"], {})[int(r["budget"])] = (
-            float(r["median"]), float(r["q1"]), float(r["q3"]))
+        med = float(r["median"])
+        if drop_diverged and (not np.isfinite(med) or med > DIVERGED_MSE):
+            continue
+        out.setdefault(r["estimator"], {})[int(r["budget"])] = (med, float(r["q1"]), float(r["q3"]))
     return out
 
 

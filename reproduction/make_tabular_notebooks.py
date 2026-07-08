@@ -37,7 +37,34 @@ JOBS = {
 }
 
 
+# nb2 is nb1 with the variant switched to the author's PR #560 — derive it so nb1 stays the
+# single source of truth for all the shared figure/table code.
+NB2_REPLS = [
+    ("# # NB1 — OddSHAP paper reproduction with **our merged contribution (PR #522)**",
+     "# # NB2 — OddSHAP paper reproduction with the **author's improvement (PR #560)**"),
+    ("for Shapley Values*, arXiv:2602.01399) using the OddSHAP implementation **our group\n"
+     "# contributed and merged (PR #522)**.",
+     "for Shapley Values*, arXiv:2602.01399) using the paper author's follow-up **PR #560**\n"
+     "# (relaxed minimum budget + paired-row sampling)."),
+    ('VARIANT = os.environ.get("ODDSHAP_VARIANT", "v522_merged")',
+     'VARIANT = os.environ.get("ODDSHAP_VARIANT", "v560_improved")'),
+    ("plots. Regenerate with `bash reproduction/cluster/submit_all.sh v522_merged`.",
+     "plots. Regenerate with `bash reproduction/cluster/submit_all.sh v560_improved`."),
+]
+
+
+def _regen_nb2() -> None:
+    text = (HERE / "nb1_reproduction_ours.py").read_text(encoding="utf-8")
+    for old, new in NB2_REPLS:
+        if old not in text:
+            raise SystemExit(f"nb2 pattern not found in nb1:\n  {old[:60]!r}")
+        text = text.replace(old, new, 1)
+    (HERE / "nb2_reproduction_author.py").write_text(text, encoding="utf-8")
+    print("wrote nb2_reproduction_author.py (derived from nb1)")
+
+
 def main() -> None:
+    _regen_nb2()  # keep nb2 in sync with nb1 before deriving the tabular cuts
     for src, repls in JOBS.items():
         text = (HERE / src).read_text(encoding="utf-8")
         for old, new in repls:

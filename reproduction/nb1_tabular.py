@@ -92,6 +92,15 @@ except (NameError, AttributeError):
 # 3. **OddSHAP: ours vs paper** — OddSHAP alone, our curve + IQR band (solid) over the paper's
 #    median curve (dashed; the paper's per-curve band edges were not digitised), so the
 #    reproduction fidelity is visible at a glance.
+#
+# > **kADDSHAP low-budget divergence (a finding, shown not hidden).** On the high-dimensional
+# > value functions (d ≥ 60) the k-additive regression's normal-equations solve goes near-singular
+# > at the smallest budgets and returns a diverged estimate (MSE up to 1e94, crime). We keep these
+# > points: panel (1)'s y-axis is focused on the real estimates so the diverged line visibly shoots
+# > off the top edge, with an annotation of the value. This is the regression-path sibling of the
+# > TreeSHAP Chebyshev-Vandermonde instability we fixed upstream (PR #547) — `np.linalg.solve` on a
+# > near-singular normal matrix returns garbage instead of raising. The paper's Figure 2 includes
+# > neither kADDSHAP nor KernelSHAP — those are extra baselines we add.
 
 # %%
 import matplotlib.image as mpimg
@@ -105,10 +114,23 @@ for vf in TAB_VFS + GPU_VFS:                       # all 8 value functions
         continue
     is_gpu = vf in GPU_VFS
     banner = BANNER_GPU if is_gpu else BANNER_TAB
-    fig, axes = plt.subplots(1, 3, figsize=(15, 4.2))
+    # paper's own method key on top: the extracted per-VF paper panel has no legend of its
+    # own (the paper shares one legend across sub-plots), and its colours match our panel (1),
+    # so this single strip labels both panels 1 and 2.
+    fig = plt.figure(figsize=(15, 5.0))
+    gs = fig.add_gridspec(2, 3, height_ratios=[1, 7], hspace=0.42)
+    axl = fig.add_subplot(gs[0, :]); axl.axis("off")
+    _leg = R.paper_legend_path()
+    if _leg is not None:
+        axl.imshow(mpimg.imread(str(_leg)))
+        axl.set_title("paper's method key — same colours in panels (1) & (2)", fontsize=8)
+    axes = [fig.add_subplot(gs[1, j]) for j in range(3)]
 
-    # (1) ours — median + IQR band
+    # (1) ours — median + IQR band. Diverged points (kADDSHAP's near-singular low-budget
+    # solve, MSE up to 1e94) are NOT hidden: they shoot off the top of the axis and are
+    # annotated, because the divergence is itself a finding.
     ax = axes[0]
+    finite_meds, diverged = [], []
     for e in ESTIMATORS:
         pts = sorted(ours.get(e, {}).items())
         if not pts:
@@ -120,7 +142,19 @@ for vf in TAB_VFS + GPU_VFS:                       # all 8 value functions
         ax.plot(xs, np.clip(med, 1e-32, None), label=e, **st)
         ax.fill_between(xs, np.clip(q1, 1e-32, None), np.clip(q3, 1e-32, None),
                         color=st["color"], alpha=0.15)
+        finite_meds += [m for m in med if np.isfinite(m) and m <= R.DIVERGED_MSE]
+        diverged += [(e, b, m) for b, m in zip(xs, med) if m > R.DIVERGED_MSE]
     ax.set_xscale("log"); ax.set_yscale("log"); ax.grid(True, alpha=0.3)
+    # focus the y-axis on the real estimates so the readable curves are not crushed by the
+    # off-scale divergence; the diverged line still visibly shoots past the top edge.
+    if finite_meds:
+        ax.set_ylim(min(finite_meds) / 5, max(finite_meds) * 20)
+    if diverged:
+        w = max(diverged, key=lambda t: t[2])
+        ax.annotate(f"{w[0]} diverges off-scale at m={w[1]}\n(near-singular solve, MSE≈{w[2]:.0e})",
+                    xy=(0.03, 0.03), xycoords="axes fraction", va="bottom", fontsize=6.2,
+                    color=R.paper_style(w[0])["color"],
+                    bbox=dict(boxstyle="round,pad=0.2", fc="white", ec=R.paper_style(w[0])["color"], lw=0.6))
     ax.set_xlabel("budget m"); ax.set_ylabel("MSE (median ± IQR band)")
     ax.set_title("(1) ours (reproduction)"); ax.legend(fontsize=6, ncol=2)
 
@@ -174,6 +208,13 @@ for vf in TAB_VFS + GPU_VFS:                       # all 8 value functions
 # available: **(1) ours** (each value function a distinct colour + marker + line style, with
 # its IQR band) and **(2) the paper's original panel** (its own median ± IQR bands). Each
 # value function's band shows the spread over the 30 instances.
+#
+# > **On the paper's Figure-4 legend.** The paper's original Figure 4 carries **no per-line
+# > legend**, and its line colours are its own (not paper-aligned like our Figure 2), so we
+# > cannot map its curves to named value functions. Our panel (1) *is* labelled; the intended
+# > comparison is the shared **U-shape** (the paper's claim: odd interactions help, then
+# > over-fit). The paper's single monotonically-falling curve (~1e-7) is a value function whose
+# > model is essentially pure odd-interaction — not one of our six tabular VFs (all U-shape).
 
 # %%
 for budget, label in [(10_000, "Figure 4"), (5_000, "Figure 11a"), (20_000, "Figure 11c")]:
@@ -206,6 +247,14 @@ for budget, label in [(10_000, "Figure 4"), (5_000, "Figure 11a"), (20_000, "Fig
         axp = axes[0][1]
         axp.imshow(mpimg.imread(str(png))); axp.axis("off")
         axp.set_title("(2) paper (original Fig. 4, with IQR band)")
+        # The paper's Fig. 4 ships no per-line legend and its line colours are not ours, so
+        # we cannot map its curves to named value functions. The comparison is the shared
+        # U-shape (odd interactions help, then over-fit); each line is one value function
+        # (cf. the labelled panel 1). The single curve that keeps falling to ~1e-7 is a VF
+        # whose model is (almost) purely odd-interaction — not one of our tabular VFs.
+        axp.text(0.5, -0.04, "paper gives no per-line legend — lines are value functions (see panel 1); "
+                 "compare the U-shape", transform=axp.transAxes, ha="center", va="top", fontsize=6.5,
+                 style="italic", color="#555555")
     fig.suptitle(R.fig_title(f"{label} — η ablation", "7 VFs", VARIANT, f"m={budget:,}"), y=1.02)
     R.add_banner(fig, BANNER_TAB); plt.show()
 

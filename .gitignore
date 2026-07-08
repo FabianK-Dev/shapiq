@@ -205,3 +205,7 @@ scripts/
 # credentials (never commit)
 reproduction/cluster/machines.txt
 reproduction/cluster/sshkey
+
+# rendered notebooks + scratch figures
+reproduction/*.ipynb
+reproduction/_*.png
