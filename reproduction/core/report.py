@@ -15,7 +15,10 @@ from pathlib import Path
 
 import numpy as np
 
-from .constants import ESTIMATORS, PAPER_D, VARIANT_LABEL, VARIANT_SHORT
+from .constants import (
+    ESTIMATORS, ETA_BUDGETS, ETAS, GPU_VF_NAMES, PAPER_D, TABULAR_VF_NAMES,
+    VARIANT_LABEL, VARIANT_SHORT,
+)
 from .style import (  # noqa: F401  (re-exported for the notebooks)
     OKABE_ITO, ODDSHAP_COLOR, PAPER_COLOR, PAPER_VF_ALIAS, estimator_style, paper_style,
     paper_vf_style, variant_style, vf_style,
@@ -96,6 +99,38 @@ def load_paper_oddshap_band(vf: str):
             if q1 <= m <= q3:            # drop digitisation points where the band crossed
                 out.append((b, m, q1, q3))
     return sorted(out) or None
+
+
+def experiment_setup(variant: str, *, instances: int = 30) -> str:
+    """A full, self-documenting description of the experimental protocol, so a reader knows
+    exactly how every number was produced without opening the cluster scripts. Data-driven
+    from the shared constants, so it can never drift from what actually ran."""
+    try:
+        import shapiq
+        shapiq_v = getattr(shapiq, "__version__", "?")
+    except Exception:  # noqa: BLE001
+        shapiq_v = "?"
+    tab = ", ".join(f"{v} (d={PAPER_D.get(v, '?')})" for v in TABULAR_VF_NAMES)
+    gpu = ", ".join(f"{v} (d={PAPER_D.get(v, '?')})" for v in GPU_VF_NAMES)
+    return "\n".join([
+        "=" * 24 + "  EXPERIMENTAL SETUP  " + "=" * 24,
+        f"  OddSHAP variant     : {VARIANT_LABEL.get(variant, variant)}",
+        f"  Instances / VF      : N = {instances}   (every median / IQR band / mean / std is over these {instances})",
+        f"  Tabular VFs ({len(TABULAR_VF_NAMES)})     : {tab}",
+        f"  Deep-learning VFs ({len(GPU_VF_NAMES)}) : {gpu}",
+        f"  Estimators ({len(ESTIMATORS)})       : {', '.join(ESTIMATORS)}",
+        "  Value function      : XGBoost + interventional imputation, 50 background samples [tabular];",
+        "                        ViT16 / DistilBERT class probability [deep-learning]",
+        "  Ground truth        : exact interventional TreeSHAP [tabular];  exact 2^d enumeration [deep-learning]",
+        "  Metric              : single-feature Shapley MSE vs ground truth, aggregated over the N instances",
+        "  Table 1 / 3 budget  : m = max(d+1, 100*d)",
+        "  Figure 2 budgets    : log-spaced grid, m = d+1 .. min(2^d, 20000)",
+        f"  Figure 4 / 11       : fixed m in {ETA_BUDGETS} samples,  eta in {ETAS}  (# odd interactions = ceil(m/eta));",
+        "                        y = MSE ratio vs the interaction-free baseline (LeverageSHAP)",
+        "  Hardware            : LMU CIP cluster - CPU nodes (tabular) / NVIDIA GPU (deep-learning VFs)",
+        f"  Software            : shapiq {shapiq_v}, python {platform.python_version()}, {platform.system()}",
+        "=" * 70,
+    ])
 
 
 def environment_banner(variant: str, *, gt: str, vf_family: str = "XGBoost + interventional (50 bg)") -> str:

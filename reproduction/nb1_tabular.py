@@ -41,9 +41,11 @@ TAB_VFS, GPU_VFS = TABULAR_VF_NAMES, []  # tabular-only: ViT16/DistilBERT exclud
 BANNER_TAB = R.environment_banner(VARIANT, gt="exact interventional TreeSHAP")
 BANNER_GPU = R.environment_banner(VARIANT, gt="exact Shapley (2^d enumeration)",
                                   vf_family="deep model (ViT16 / DistilBERT), baseline imputation")
-print("variant:", R.VARIANT_LABEL[VARIANT])
-print("missing data (run the cluster scripts to fill):",
-      [vf for vf in TAB_VFS + GPU_VFS if not R.has(f"table1_{vf}_{VARIANT}.csv")] or "none")
+print(R.experiment_setup(VARIANT))
+_missing = [vf for vf in TAB_VFS + GPU_VFS if not R.has(f"table1_{vf}_{VARIANT}.csv")]
+print("  Data completeness   :",
+      "all value functions present" if not _missing
+      else f"MISSING {_missing} — run the cluster scripts to fill")
 
 # %% [markdown]
 # ## Table 1 — average rank (headline result)
