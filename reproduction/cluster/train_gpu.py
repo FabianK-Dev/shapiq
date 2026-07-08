@@ -37,7 +37,21 @@ from reproduction.core.constants import ETA_BUDGETS, ETAS, VARIANT_CHOICES
 from reproduction.core.harness import interaction_free_oddshap, load_oddshap, log_budgets, make_estimator, sfv
 
 N_INST = 30
-REPO = os.path.expanduser("~/oddshap_reproduction")
+# Repo root that holds src/shapiq_games/... — the cluster clone, or (for a local GPU run)
+# walk up from this file until src/shapiq_games is found.
+def _find_repo() -> str:
+    env = os.path.expanduser("~/oddshap_reproduction")
+    if os.path.isdir(os.path.join(env, "src", "shapiq_games")):
+        return env
+    here = os.path.dirname(os.path.abspath(__file__))
+    for _ in range(6):
+        if os.path.isdir(os.path.join(here, "src", "shapiq_games")):
+            return here
+        here = os.path.dirname(here)
+    return env
+
+
+REPO = _find_repo()
 EXCERPT_TOKENS = 14
 REVIEWS = [
     "This film is an absolute masterpiece with stunning visuals and a deeply moving story.",
