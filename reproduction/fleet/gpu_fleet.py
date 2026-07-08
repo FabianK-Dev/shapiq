@@ -68,12 +68,13 @@ class MachineState:
 
 class Fleet:
     def __init__(self, machines, variants, experiments, instances, outdir, hf_mirror=True,
-                 per_gpu=1, sync_code=True, eta_budgets=None):
+                 per_gpu=1, sync_code=True, eta_budgets=None, cores=48):
         self.machines = machines
         self.experiments = experiments
         self.per_gpu = per_gpu               # concurrent instances per GPU (saturate a small model)
         self.sync_code = sync_code
         self.eta_budgets = eta_budgets       # e.g. [10000] for the reduced Fig4-only run
+        self.cores = cores                   # CPU cores per box (to size BLAS threads / process)
         self.outdir = Path(outdir)
         self.outdir.mkdir(parents=True, exist_ok=True)
         self.hf_mirror = hf_mirror
@@ -124,8 +125,13 @@ class Fleet:
         hf = "HF_ENDPOINT=https://hf-mirror.com " if self.hf_mirror else ""
         exp = " ".join(self.experiments)
         eta = f" --eta-budgets {' '.join(map(str, self.eta_budgets))}" if self.eta_budgets else ""
+        # eta's odd-Fourier regression is CPU-heavy; cap BLAS threads so per_gpu processes
+        # share the cores without oversubscription (threads = cores / per_gpu).
+        thr = max(1, self.cores // self.per_gpu) if self.cores else 4
+        threads = (f"OMP_NUM_THREADS={thr} OPENBLAS_NUM_THREADS={thr} "
+                   f"MKL_NUM_THREADS={thr} NUMEXPR_NUM_THREADS={thr} ")
         log = f"reproduction/data/gpu_{job.vf}_{job.variant}.log"
-        cmd = (f"export PATH={REMOTE_PY.rsplit('/',1)[0]}:$PATH TMPDIR=/tmp {hf}; "
+        cmd = (f"export PATH={REMOTE_PY.rsplit('/',1)[0]}:$PATH TMPDIR=/tmp {hf}{threads}; "
                f"cd {REMOTE_REPO} && mkdir -p reproduction/data && "
                f"{REMOTE_PY} -m reproduction.cluster.train_gpu --vf {job.vf} --variant {job.variant} "
                f"--start {job.inst} --end {job.inst + 1} --experiments {exp}{eta} 2>&1 | tee -a {log}")
@@ -293,6 +299,7 @@ def main():
                     help="concurrent instances per GPU (6 saturates a 3080 Ti on these small models)")
     ap.add_argument("--eta-budgets", nargs="+", type=int, default=None,
                     help="restrict eta ablation budgets, e.g. 10000 for the reduced Fig4-only run")
+    ap.add_argument("--cores", type=int, default=48, help="CPU cores per box (sizes BLAS threads/process)")
     ap.add_argument("--no-hf-mirror", action="store_true")
     ap.add_argument("--no-sync-code", action="store_true", help="skip SFTP code push (clones already current)")
     a = ap.parse_args()
@@ -302,7 +309,7 @@ def main():
           f"{njobs} jobs, experiments={a.experiments}, eta_budgets={a.eta_budgets or 'all'}")
     Fleet(machines, a.variants, a.experiments, a.instances, a.outdir,
           hf_mirror=not a.no_hf_mirror, per_gpu=a.per_gpu,
-          sync_code=not a.no_sync_code, eta_budgets=a.eta_budgets).run()
+          sync_code=not a.no_sync_code, eta_budgets=a.eta_budgets, cores=a.cores).run()
 
 
 if __name__ == "__main__":

@@ -87,6 +87,10 @@ def render(snap: dict, cost_per_gpu_h: float | None) -> str:
 
 
 def main():
+    try:  # box-drawing chars need utf-8; Windows consoles default to a legacy codepage
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
     ap = argparse.ArgumentParser()
     ap.add_argument("--status", default="reproduction/fleet/out/fleet_status.json")
     ap.add_argument("--once", action="store_true")
