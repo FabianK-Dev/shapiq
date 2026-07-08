@@ -106,6 +106,28 @@ _PAPER_LINESTYLE = {"MSR": ":", "SVARM": "--", "PermSamp": "-.", "PermutationSam
                     "LeverageSHAP": "-.", "OddSHAP": "-", "KernelSHAP": "--", "kADDSHAP": ":"}
 
 
+# Paper Figure-4 per-value-function colours, aligned to the paper's own legend so our
+# ablation panel sits line-for-line beside the paper's. The paper uses Cancer=red and
+# ViT16=green (a red-green pair the user cannot separate), so those two are swapped to
+# CVD-safe hues; every VF also keeps a distinct marker + line style.
+PAPER_VF_STYLE = {
+    "distilbert":          dict(color="#0072B2", marker="o", linestyle="-"),   # paper blue (match)
+    "vit16":               dict(color="#56B4E9", marker="s", linestyle="--"),  # paper green → sky
+    "cancer":              dict(color="#D55E00", marker="^", linestyle="-"),   # paper red → vermillion
+    "corrgroups60":        dict(color="#CC79A7", marker="D", linestyle="-."),  # paper purple (match)
+    "independentlinear60": dict(color="#E69F00", marker="v", linestyle=":"),   # paper brown → orange
+    "nhanes":              dict(color="#000000", marker="P", linestyle="-"),   # paper pink → black
+    "crime":               dict(color="#999999", marker="X", linestyle="--"),  # paper grey (match)
+}
+
+
+def paper_vf_style(vf: str) -> dict:
+    """Paper-Figure-4-aligned plot kwargs for a value-function line (CVD-safe swaps)."""
+    base = dict(PAPER_VF_STYLE.get(vf, dict(color="#000000", marker="o", linestyle="-")))
+    base.update(lw=1.9, ms=4)
+    return base
+
+
 def paper_style(method: str, *, emphasize: bool = None) -> dict:
     """Paper-aligned plot kwargs (colour from the paper, plus redundant marker/line style)."""
     emph = (method == "OddSHAP") if emphasize is None else emphasize

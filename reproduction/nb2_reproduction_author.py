@@ -206,12 +206,12 @@ for vf in TAB_VFS + GPU_VFS:                       # all 8 value functions
 # its IQR band) and **(2) the paper's original panel** (its own median ± IQR bands). Each
 # value function's band shows the spread over the 30 instances.
 #
-# > **On the paper's Figure-4 legend.** The paper's original Figure 4 carries **no per-line
-# > legend**, and its line colours are its own (not paper-aligned like our Figure 2), so we
-# > cannot map its curves to named value functions. Our panel (1) *is* labelled; the intended
-# > comparison is the shared **U-shape** (the paper's claim: odd interactions help, then
-# > over-fit). The paper's single monotonically-falling curve (~1e-7) is a value function whose
-# > model is essentially pure odd-interaction — not one of our six tabular VFs (all U-shape).
+# > **Baseline & colours.** The MSE ratio is normalised by the **interaction-free baseline**
+# > (the paper's Figure 4 uses LeverageSHAP for this). The paper's Figure 4 *does* carry a
+# > per-VF legend (DistilBERT, ViT16, Cancer, CG60, IL60, NHANES, Crime); our panel (1) colours
+# > are aligned to it, except the paper's Cancer=red / ViT16=green pair is swapped to
+# > colour-blind-safe hues (redundant markers keep every VF distinct). All value functions show
+# > the same **U-shape** — odd interactions help, then over-fit — with Cancer lowest (≈1/100).
 
 # %%
 for budget, label in [(10_000, "Figure 4"), (5_000, "Figure 11a"), (20_000, "Figure 11c")]:
@@ -229,7 +229,7 @@ for budget, label in [(10_000, "Figure 4"), (5_000, "Figure 11a"), (20_000, "Fig
         any_pts = True
         xs = [p[0] for p in pts]
         med = [p[1] for p in pts]; q1 = [p[2] for p in pts]; q3 = [p[3] for p in pts]
-        st = R.vf_style(vf)
+        st = R.paper_vf_style(vf)          # colours aligned to the paper's Fig. 4 legend
         ax.plot(xs, med, label=vf, **st)
         ax.fill_between(xs, q1, q3, color=st["color"], alpha=0.15)
     if not any_pts:
@@ -243,15 +243,7 @@ for budget, label in [(10_000, "Figure 4"), (5_000, "Figure 11a"), (20_000, "Fig
     if png is not None:
         axp = axes[0][1]
         axp.imshow(mpimg.imread(str(png))); axp.axis("off")
-        axp.set_title("(2) paper (original Fig. 4, with IQR band)")
-        # The paper's Fig. 4 ships no per-line legend and its line colours are not ours, so
-        # we cannot map its curves to named value functions. The comparison is the shared
-        # U-shape (odd interactions help, then over-fit); each line is one value function
-        # (cf. the labelled panel 1). The single curve that keeps falling to ~1e-7 is a VF
-        # whose model is (almost) purely odd-interaction — not one of our tabular VFs.
-        axp.text(0.5, -0.04, "paper gives no per-line legend — lines are value functions (see panel 1); "
-                 "compare the U-shape", transform=axp.transAxes, ha="center", va="top", fontsize=6.5,
-                 style="italic", color="#555555")
+        axp.set_title("(2) paper (original Fig. 4, with per-VF legend + IQR band)")
     fig.suptitle(R.fig_title(f"{label} — η ablation", "7 VFs", VARIANT, f"m={budget:,}"), y=1.02)
     R.add_banner(fig, BANNER_TAB); plt.show()
 

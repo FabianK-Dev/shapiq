@@ -18,7 +18,7 @@ import numpy as np
 from .constants import ESTIMATORS, PAPER_D, VARIANT_LABEL, VARIANT_SHORT
 from .style import (  # noqa: F401  (re-exported for the notebooks)
     OKABE_ITO, ODDSHAP_COLOR, PAPER_COLOR, PAPER_VF_ALIAS, estimator_style, paper_style,
-    variant_style, vf_style,
+    paper_vf_style, variant_style, vf_style,
 )
 
 
