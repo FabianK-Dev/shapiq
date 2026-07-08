@@ -164,18 +164,16 @@ for vf in TAB_VFS + GPU_VFS:                       # all 8 value functions
     ax.set_xlabel("budget m"); ax.set_ylabel("MSE (median ± IQR band)")
     ax.set_title("(1) ours (reproduction)"); ax.legend(fontsize=6, ncol=2)
 
-    # (2) paper — the paper's original figure PNG (with IQR band) if we have it,
-    # otherwise redrawn from the extracted median coordinates (no band digitised).
+    # (2) paper — ALWAYS the paper's own original figure PNG (never a redraw), so every row's
+    # paper panel is the authentic figure with the paper's own IQR bands. Match panel (1)'s box
+    # to the paper image's aspect so the two sit side-by-side at the same size.
     ax = axes[1]
     if png is not None:
-        ax.imshow(mpimg.imread(str(png))); ax.axis("off")
+        img = mpimg.imread(str(png))
+        ax.imshow(img); ax.axis("off")
         ax.set_title("(2) paper (original Fig. 2, with IQR band)")
-    elif paper:
-        for m, pts in paper.items():
-            ax.plot([b for b, _ in pts], [v for _, v in pts], label=m, **R.paper_style(m))
-        ax.set_xscale("log"); ax.set_yscale("log"); ax.grid(True, alpha=0.3)
-        ax.set_xlabel("budget m"); ax.legend(fontsize=6, ncol=2)
-        ax.set_title("(2) paper (Fig. 2, extracted median)")
+        axes[0].set_box_aspect(img.shape[0] / img.shape[1])   # panel (1) matches paper aspect
+        axes[2].set_box_aspect(img.shape[0] / img.shape[1])   # panel (3) too
     else:
         ax.axis("off"); ax.set_title("(2) paper — figure not available")
 

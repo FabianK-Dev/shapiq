@@ -98,12 +98,16 @@ PAPER_METHOD_NAME = {"PermSamp": "PermutationSampling", "MSR": "MSR", "SVARM": "
 # our value-function id -> paper figure id (the paper uses short aliases)
 PAPER_VF_ALIAS = {"realestate": "estate", "corrgroups60": "cg60",
                   "independentlinear60": "il60"}
-_PAPER_MARKER = {"MSR": "o", "SVARM": "s", "PermSamp": "^", "PermutationSampling": "^",
-                 "RegressionMSR": "P", "ProxyLGBM": "X", "3-PolySHAP": "*",
-                 "LeverageSHAP": "D", "OddSHAP": "o", "KernelSHAP": "D", "kADDSHAP": "v"}
-_PAPER_LINESTYLE = {"MSR": ":", "SVARM": "--", "PermSamp": "-.", "PermutationSampling": "-.",
-                    "RegressionMSR": "-", "ProxyLGBM": ":", "3-PolySHAP": "--",
-                    "LeverageSHAP": "-.", "OddSHAP": "-", "KernelSHAP": "--", "kADDSHAP": ":"}
+# The paper draws every method the same way — a solid line with round-dot markers,
+# distinguished by colour only — so our reproduction panel matches it line-for-line. The two
+# baselines the paper does NOT have (KernelSHAP, kADDSHAP) keep a distinct marker + dashed
+# style so they read as clearly ours.
+_PAPER_MARKER = {"MSR": "o", "SVARM": "o", "PermSamp": "o", "PermutationSampling": "o",
+                 "RegressionMSR": "o", "ProxyLGBM": "o", "3-PolySHAP": "o",
+                 "LeverageSHAP": "o", "OddSHAP": "o", "KernelSHAP": "D", "kADDSHAP": "v"}
+_PAPER_LINESTYLE = {"MSR": "-", "SVARM": "-", "PermSamp": "-", "PermutationSampling": "-",
+                    "RegressionMSR": "-", "ProxyLGBM": "-", "3-PolySHAP": "-",
+                    "LeverageSHAP": "-", "OddSHAP": "-", "KernelSHAP": "--", "kADDSHAP": ":"}
 
 
 # Paper Figure-4 per-value-function colours, aligned to the paper's own legend so our
