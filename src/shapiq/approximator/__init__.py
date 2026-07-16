@@ -39,6 +39,15 @@ except ImportError as _e:
             """Raise an informative ImportError pointing to the missing extra."""
             raise self._import_error
 
+        def approximate(self, *_args: object, **_kwargs: object) -> object:
+            """Unreachable, since ``__init__`` always raises.
+
+            It exists so the placeholder is concrete: an abstract subclass would fail
+            instantiation with ``TypeError: Can't instantiate abstract class`` before
+            ``__init__`` runs, hiding the import error that explains what to install.
+            """
+            raise self._import_error
+
 
 try:
     from .sparse import SPEX
@@ -51,6 +60,15 @@ except ImportError as _e:
 
         def __init__(self, *_args: object, **_kwargs: object) -> None:
             """Raise an informative ImportError pointing to the missing extra."""
+            raise self._import_error
+
+        def approximate(self, *_args: object, **_kwargs: object) -> object:
+            """Unreachable, since ``__init__`` always raises.
+
+            It exists so the placeholder is concrete: an abstract subclass would fail
+            instantiation with ``TypeError: Can't instantiate abstract class`` before
+            ``__init__`` runs, hiding the import error that explains what to install.
+            """
             raise self._import_error
 
 
