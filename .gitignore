@@ -206,3 +206,9 @@ cache/
 
 # Local debug / scratch scripts (not public)
 scripts/
+
+# Reproduction: never commit machine access details or scratch renders
+notebooks/oddshap/cluster/machines*.txt
+notebooks/oddshap/cluster/sshkey
+notebooks/oddshap/fleet/out/
+notebooks/oddshap/_*.png
