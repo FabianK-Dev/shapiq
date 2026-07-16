@@ -1,16 +1,16 @@
 #!/bin/bash
 # Live training dashboard for the OddSHAP reproduction runs.
 #
-#   one snapshot:   bash reproduction/cluster/monitor.sh
-#   live (refresh):  bash reproduction/cluster/monitor.sh watch        (Ctrl-C to stop)
-#   pick a variant:  VARIANT=v560_improved bash reproduction/cluster/monitor.sh
+#   one snapshot:   bash notebooks/oddshap/cluster/monitor.sh
+#   live (refresh):  bash notebooks/oddshap/cluster/monitor.sh watch        (Ctrl-C to stop)
+#   pick a variant:  VARIANT=v560_improved bash notebooks/oddshap/cluster/monitor.sh
 #
 # From your laptop:
-#   ssh krater20 'bash ~/oddshap_reproduction/reproduction/cluster/monitor.sh'
-#   ssh -t krater20 'bash ~/oddshap_reproduction/reproduction/cluster/monitor.sh watch'
+#   ssh krater20 'bash ~/oddshap_reproduction/notebooks/oddshap/cluster/monitor.sh'
+#   ssh -t krater20 'bash ~/oddshap_reproduction/notebooks/oddshap/cluster/monitor.sh watch'
 export PATH="$HOME/.local/bin:$PATH"
 REPO="$HOME/oddshap_reproduction"
-DATA="$REPO/reproduction/data"
+DATA="$REPO/notebooks/oddshap/data"
 LOGS="$REPO/logs"
 VARIANT="${VARIANT:-v522_merged}"
 TAB_VFS="cancer realestate corrgroups60 independentlinear60 nhanes crime"

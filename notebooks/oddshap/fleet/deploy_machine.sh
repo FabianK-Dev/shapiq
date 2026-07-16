@@ -9,7 +9,7 @@ export HF_ENDPOINT=https://hf-mirror.com          # China-friendly HuggingFace m
 [ -f /etc/network_turbo ] && source /etc/network_turbo 2>/dev/null || true
 
 REPO=/root/oddshap_reproduction              # system disk → captured by an AutoDL image save
-BRANCH=wu/oddshap-reproduction
+BRANCH=wu/conformance-test
 
 # --- code: clone/update; if GitHub is unreachable, keep whatever is already there ---
 if [ ! -d "$REPO/.git" ]; then

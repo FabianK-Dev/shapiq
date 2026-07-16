@@ -1,7 +1,7 @@
 # OddSHAP — paper reproduction
 
-Reproduction of **Fumagalli et al. (2026), "Odd Interactions Are All You Need for Shapley Value
-Estimation"** (arXiv:2602.01399) — the paper behind the `OddSHAP` approximator added in
+Reproduction of **Fumagalli et al. (2026), "An Odd Estimator for Shapley Values"**
+(arXiv:2602.01399) — the paper behind the `OddSHAP` approximator added in
 [#522](https://github.com/mmschlk/shapiq/pull/522) and refined in
 [#560](https://github.com/mmschlk/shapiq/pull/560).
 
@@ -19,8 +19,14 @@ from the authors' code.
 | Adding odd interactions beats the interaction-free baseline, then over-fits (Fig. 4) | reproduced; same non-monotone shape |
 
 The paper's central claim reproduces. Both the original implementation (#522) and the follow-up
-improvements (#560) give **rank 1 on 7/8, average rank 1.12** — i.e. the #560 changes did not alter
-the accuracy conclusions (quantified in `oddshap_comparison.ipynb`).
+improvements (#560) give **rank 1 on 7/8, average rank 1.125** — i.e. the #560 changes did not alter
+the accuracy conclusions (quantified in `oddshap_comparison.ipynb`). The single non-first rank is
+`distilbert`, where `RegressionMSR` edges ahead.
+
+The two rank numbers are **not directly comparable**: ours is an average over the six baselines
+listed under "What was run" below, which is a smaller pool than the paper's. A smaller pool makes
+rank 1 easier to hold, so 1.125 should be read as "the ordering reproduces", not as "we beat the
+paper".
 
 ---
 
@@ -30,7 +36,8 @@ The three notebooks are **committed with all outputs**, so they can simply be op
 
 They are also **fully re-renderable offline in a few minutes**: every number and figure is computed
 from the CSVs committed in [`data/`](data), so re-rendering needs **no GPU, no cluster, and no
-re-running of the experiments** (it does not even import `shapiq`):
+re-running of the experiments** (and does not require `shapiq` itself to be installed — it is
+imported only, if present, to stamp the version into the figures' info banner):
 
 ```bash
 # from this directory
@@ -80,7 +87,8 @@ experiments from scratch with the scripts below and regenerate the CSVs.
 Reproducing the tabular results from scratch (this *does* recompute, and takes hours):
 
 ```bash
-python cluster/train_tabular.py --vf cancer --variant v522_merged --out notebooks/oddshap/data
+# from this directory (notebooks/oddshap/)
+python cluster/train_tabular.py --vf cancer --variant v522_merged --out data
 ```
 
 The vision/language value functions were run on rented GPU machines via `fleet/`, and the
@@ -91,10 +99,12 @@ per-machine logs merged with `cluster/aggregate_gpu.py`.
 ## Honest limitations
 
 * **The GPU value functions are budget-truncated.** `vit16` and `distilbert` cover 7 budget points
-  up to ~1,900 rather than the paper's full sweep (16,384 / 20,000). The rented GPU time ran out
-  before the high-budget points finished. Their low-/mid-budget behaviour reproduces, and both are
-  low-dimensional (d=16, d=14), where the paper itself notes the methods converge — but the
-  high-budget tail for these two is **not** independently confirmed here.
+  each, reaching only 1,895 and 1,591 respectively, rather than the paper's full sweep (16,384 /
+  20,000). The rented GPU time ran out before the high-budget points finished. Their low-/mid-budget
+  behaviour reproduces, and both are low-dimensional (d=16, d=14), where the paper itself notes the
+  methods converge — but the high-budget tail for these two is **not** independently confirmed here.
+  The η ablation below *is* complete for them at budget 10,000, because it runs OddSHAP alone and so
+  costs a fraction of the seven-estimator sweep.
 * **`paper_reference/` is digitised from the published figures** (vector PDF), not taken from
   author-provided numbers. It is a visual reference for overlay, accurate to the pixel resolution
   of the source, and should not be read as exact ground truth.

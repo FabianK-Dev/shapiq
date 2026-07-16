@@ -11,10 +11,10 @@ round-robin across the machines, giving ~6 concurrent processes per box. Each sh
 its ``PARTIAL_*`` lines to ``notebooks/oddshap/data/shard_<vf>_<variant>_<s>_<e>.log`` on the
 remote; the poller reads those to report progress and, at the end, pulls them all back.
 
-    python -m reproduction.fleet.gpu_run --machines reproduction/cluster/machines.txt \
+    python notebooks/oddshap/fleet/gpu_run.py --machines notebooks/oddshap/cluster/machines.txt \
         --experiments table1 fig2 eta            # launch + poll to completion
-    python -m reproduction.fleet.gpu_run --poll-only   # just resume polling
-    python -m reproduction.fleet.gpu_run --pull        # pull all shard logs locally
+    python notebooks/oddshap/fleet/gpu_run.py --poll-only   # just resume polling
+    python notebooks/oddshap/fleet/gpu_run.py --pull        # pull all shard logs locally
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ CELLS = [("distilbert", "v522_merged"), ("distilbert", "v560_improved"),
          ("vit16", "v522_merged"), ("vit16", "v560_improved")]
 N_INST = 30
 SHARD = 5                       # instances per detached process
-OUT = Path("reproduction/fleet/out")
+OUT = Path("notebooks/oddshap/fleet/out")
 
 
 def parse_machines(path):
@@ -90,7 +90,7 @@ def launch(machines, assignment, experiments, extra=""):
             cmd = (f"cd {REMOTE_REPO}; "
                    f"HF_ENDPOINT=https://hf-mirror.com HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 "
                    f"TMPDIR=/tmp OMP_NUM_THREADS=8 OPENBLAS_NUM_THREADS=8 MKL_NUM_THREADS=8 "
-                   f"setsid {REMOTE_PY} -m reproduction.cluster.train_gpu --vf {vf} --variant {var} "
+                   f"setsid {REMOTE_PY} notebooks/oddshap/cluster/train_gpu.py --vf {vf} --variant {var} "
                    f"--start {s} --end {e} --experiments {exp}{extra} > {log} 2>&1 < /dev/null &")
             c.exec_command(cmd)          # fire and forget — do NOT read (would block on the &)
             time.sleep(0.4)
@@ -147,7 +147,7 @@ def main():
     except Exception:
         pass
     ap = argparse.ArgumentParser()
-    ap.add_argument("--machines", default="reproduction/cluster/machines.txt")
+    ap.add_argument("--machines", default="notebooks/oddshap/cluster/machines.txt")
     ap.add_argument("--experiments", nargs="+", default=["table1", "fig2", "eta"])
     ap.add_argument("--eta-budgets", nargs="+", type=int, default=None)
     ap.add_argument("--fig2-max-budget", type=int, default=None)

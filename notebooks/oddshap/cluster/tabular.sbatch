@@ -9,6 +9,6 @@
 export TMPDIR=/tmp
 export PATH="$HOME/.local/bin:$PATH"
 cd "$HOME/oddshap_reproduction" || exit 1
-uv run --no-sync python -m reproduction.cluster.train_tabular \
+uv run --no-sync python notebooks/oddshap/cluster/train_tabular.py \
     --vf "$VF" --variant "$VARIANT" --instances 30 --jobs "${SLURM_CPUS_PER_TASK:-14}" \
-    --out reproduction/data
+    --out notebooks/oddshap/data

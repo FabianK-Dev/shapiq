@@ -8,7 +8,7 @@
 export TMPDIR=/tmp
 export PATH="$HOME/.local/bin:$PATH"
 cd "$HOME/oddshap_reproduction" || exit 1
-uv run --no-sync python -m reproduction.cluster.train_gpu \
+uv run --no-sync python notebooks/oddshap/cluster/train_gpu.py \
     --vf "$VF" --variant "$VARIANT" --start "$INST" --end "$((INST + 1))" \
     ${EXPERIMENTS:+--experiments $EXPERIMENTS} \
-    | tee -a "reproduction/data/gpu_${VF}_${VARIANT}.log"
+    | tee -a "notebooks/oddshap/data/gpu_${VF}_${VARIANT}.log"

@@ -13,6 +13,6 @@ cd "$HOME/oddshap_reproduction" || exit 1
 STRIDE=3
 start=$(( SLURM_ARRAY_TASK_ID * STRIDE ))
 end=$(( start + STRIDE ))
-uv run --no-sync python -m reproduction.cluster.train_gpu \
+uv run --no-sync python notebooks/oddshap/cluster/train_gpu.py \
     --vf "$VF" --variant "$VARIANT" --start "$start" --end "$end" \
-    | tee -a "reproduction/data/gpu_${VF}_${VARIANT}.log"
+    | tee -a "notebooks/oddshap/data/gpu_${VF}_${VARIANT}.log"

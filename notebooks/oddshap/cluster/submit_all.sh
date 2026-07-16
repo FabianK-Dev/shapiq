@@ -7,12 +7,12 @@
 # abort mid-submission — so this script deliberately does one variant per invocation.
 #
 # Usage:
-#   bash reproduction/cluster/submit_all.sh v522_merged
+#   bash notebooks/oddshap/cluster/submit_all.sh v522_merged
 #   # wait for that batch to drain, then:
-#   bash reproduction/cluster/submit_all.sh v560_improved
+#   bash notebooks/oddshap/cluster/submit_all.sh v560_improved
 set -uo pipefail
 cd "$HOME/oddshap_reproduction"
-mkdir -p reproduction/data logs
+mkdir -p notebooks/oddshap/data logs
 
 VARIANT="${1:?usage: submit_all.sh <v522_merged|v560_improved>}"
 TAB_VFS="cancer realestate corrgroups60 independentlinear60 nhanes crime"
@@ -29,12 +29,12 @@ fi
 echo "=== submitting variant $VARIANT ($WANT jobs) ==="
 for VF in $TAB_VFS; do
   sbatch -J "tab_${VF}_${VARIANT}" -o "logs/tab_${VF}_${VARIANT}.out" \
-    --export=ALL,VF="$VF",VARIANT="$VARIANT" reproduction/cluster/tabular.sbatch \
+    --export=ALL,VF="$VF",VARIANT="$VARIANT" notebooks/oddshap/cluster/tabular.sbatch \
     || echo "WARN: tabular $VF submit failed" >&2
 done
 for VF in $GPU_VFS; do
   sbatch -J "gpu_${VF}_${VARIANT}" -o "logs/gpu_${VF}_${VARIANT}_%a.out" \
-    --export=ALL,VF="$VF",VARIANT="$VARIANT" --array=0-9 reproduction/cluster/gpu.sbatch \
+    --export=ALL,VF="$VF",VARIANT="$VARIANT" --array=0-9 notebooks/oddshap/cluster/gpu.sbatch \
     || echo "WARN: gpu $VF submit failed" >&2
 done
 echo "=== queue ==="

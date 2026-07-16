@@ -4,9 +4,9 @@ Reads ``fleet_status.json`` (written by gpu_fleet.py) and renders a four-panel t
 dashboard, refreshing in place. Everything is derived from the fleet's live state and
 measured per-instance timings, so the time forecasts sharpen as the run proceeds.
 
-    python -m reproduction.fleet.gpu_monitor                       # live, refresh 5s
-    python -m reproduction.fleet.gpu_monitor --once                # one snapshot
-    python -m reproduction.fleet.gpu_monitor --cost 1.5            # yuan per GPU-hour
+    python notebooks/oddshap/fleet/gpu_monitor.py                       # live, refresh 5s
+    python notebooks/oddshap/fleet/gpu_monitor.py --once                # one snapshot
+    python notebooks/oddshap/fleet/gpu_monitor.py --cost 1.5            # yuan per GPU-hour
 """
 
 from __future__ import annotations
@@ -92,7 +92,7 @@ def main():
     except Exception:
         pass
     ap = argparse.ArgumentParser()
-    ap.add_argument("--status", default="reproduction/fleet/out/fleet_status.json")
+    ap.add_argument("--status", default="notebooks/oddshap/fleet/out/fleet_status.json")
     ap.add_argument("--once", action="store_true")
     ap.add_argument("--cost", type=float, default=None, help="yuan per GPU-hour for cost tracking")
     ap.add_argument("--interval", type=float, default=5.0)

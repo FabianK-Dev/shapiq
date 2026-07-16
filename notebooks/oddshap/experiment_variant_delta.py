@@ -5,7 +5,7 @@ truth, and budget grid, and reports where their numbers differ. The finding: the
 bitwise-identical at every budget >= n*interaction_factor; PR #560's entire contribution
 is the low-budget regime (budget < n*eta), where PR #522 refuses and #560 still estimates.
 
-Run:  uv run python -m reproduction.experiment_variant_delta   [--vf realestate] [--instances 5]
+Run:  uv run python notebooks/oddshap/experiment_variant_delta.py   [--vf realestate] [--instances 5]
 """
 
 from __future__ import annotations

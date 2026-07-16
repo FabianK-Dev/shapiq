@@ -13,7 +13,7 @@ live ``fleet_status.json`` is written continuously for ``gpu_monitor.py`` to ren
 Machines file (``--machines``), one per line: ``host:port:user:password``  (``#`` comments ok).
 
 Usage:
-    python -m reproduction.fleet.gpu_fleet --machines machines.txt \
+    python notebooks/oddshap/fleet/gpu_fleet.py --machines machines.txt \
         --variants v522_merged v560_improved --experiments table1 eta --instances 30
 """
 
@@ -32,7 +32,7 @@ import paramiko
 
 REMOTE_REPO = "/root/oddshap_reproduction"        # system disk, so an AutoDL image includes it
 REMOTE_PY = "/root/miniconda3/bin/python"
-LOCAL_REPRO = Path(__file__).resolve().parents[1]   # local reproduction/ dir to push
+LOCAL_REPRO = Path(__file__).resolve().parents[1]   # local notebooks/oddshap/ dir to push
 GPU_VFS = ["distilbert", "vit16"]     # distilbert first (lighter GT) so results land sooner
 # per-instance forward-pass weight, used only for the *initial* ETA before real timings arrive
 _VF_WEIGHT = {"distilbert": 1.0, "vit16": 1.6}
@@ -101,7 +101,7 @@ class Fleet:
         return c
 
     def _sync_code(self, m):
-        """SFTP the local reproduction/ tree to the machine (GitHub is unreliable on the
+        """SFTP the local notebooks/oddshap/ tree to the machine (GitHub is unreliable on the
         China cloud boxes). Runs once per machine before its workers start."""
         c = self._connect(m)
         sf = c.open_sftp()
@@ -133,7 +133,7 @@ class Fleet:
         log = f"notebooks/oddshap/data/gpu_{job.vf}_{job.variant}.log"
         cmd = (f"export PATH={REMOTE_PY.rsplit('/',1)[0]}:$PATH TMPDIR=/tmp {hf}{threads}; "
                f"cd {REMOTE_REPO} && mkdir -p notebooks/oddshap/data && "
-               f"{REMOTE_PY} -m reproduction.cluster.train_gpu --vf {job.vf} --variant {job.variant} "
+               f"{REMOTE_PY} notebooks/oddshap/cluster/train_gpu.py --vf {job.vf} --variant {job.variant} "
                f"--start {job.inst} --end {job.inst + 1} --experiments {exp}{eta} 2>&1 | tee -a {log}")
         _i, o, e = c.exec_command(cmd, timeout=3600)
         out = o.read().decode(errors="replace") + e.read().decode(errors="replace")
@@ -294,7 +294,7 @@ def main():
     ap.add_argument("--variants", nargs="+", default=["v522_merged", "v560_improved"])
     ap.add_argument("--experiments", nargs="+", default=["table1", "eta"])
     ap.add_argument("--instances", type=int, default=30)
-    ap.add_argument("--outdir", default="reproduction/fleet/out")
+    ap.add_argument("--outdir", default="notebooks/oddshap/fleet/out")
     ap.add_argument("--per-gpu", type=int, default=6,
                     help="concurrent instances per GPU (6 saturates a 3080 Ti on these small models)")
     ap.add_argument("--eta-budgets", nargs="+", type=int, default=None,

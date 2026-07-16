@@ -14,7 +14,7 @@ Emits tidy lines the aggregator turns into CSVs:
 
 Sliced by [--start,--end) so 30 instances run as parallel Slurm array shards.
 
-Usage:  python -m reproduction.cluster.train_gpu --vf vit16 --variant v522_merged \
+Usage:  python notebooks/oddshap/cluster/train_gpu.py --vf vit16 --variant v522_merged \
             --start 0 --end 3
 """
 

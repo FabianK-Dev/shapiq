@@ -18,7 +18,7 @@ spread across nodes.
 
 Usage
 -----
-    python -m reproduction.cluster.train_tabular --vf cancer --variant v522_merged \
+    python notebooks/oddshap/cluster/train_tabular.py --vf cancer --variant v522_merged \
         --experiments table1 fig2 eta runtime --instances 30 --jobs -1 --out data
 """
 

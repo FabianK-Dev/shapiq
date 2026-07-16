@@ -4,12 +4,12 @@
 # NB1 reproduced the paper with **our merged OddSHAP (PR #522)**; NB2 with the paper
 # author's follow-up **PR #560**. This notebook puts the two revisions head-to-head on
 # identical value functions, budgets, and seeds — the reproduction harness runs both
-# through the same pipeline via the pluggable variant registry (`reproduction/core/variants/`).
+# through the same pipeline via the pluggable variant registry (`core/variants/`).
 #
 # **The question.** PR #560 relaxes OddSHAP's minimum budget (from `n·η` to `η`) and merges
 # paired regression rows. Does it change the paper's reproduced results, and if so, where?
 #
-# **The answer, previewed.** The two are *bitwise identical* for every budget ≥ n·η — so
+# **The answer, previewed.** The two agree to machine precision for every budget ≥ n·η (max relative delta ≤ 5e-12 on the tabular value functions; bitwise on the deep-learning ones) — so
 # every paper-scale result (Table 1, Figure 4, all at budget ≥ n·η) is unchanged. PR #560's
 # entire effect is the low-budget regime (budget < n·η), where PR #522 refuses and #560
 # still estimates.
@@ -117,12 +117,12 @@ if R.has(name):
         note = "identical" if a and abs(a - c) <= 1e-9 * max(a, c) else ("#560-only regime" if a is None else "")
         print(f"{b:>8} {'REFUSED' if a is None else f'{a:.3e}':>14} {c:>14.3e}  {note}")
 else:
-    print("run: uv run python -m reproduction.experiment_variant_delta --vf realestate")
+    print("run: uv run python notebooks/oddshap/experiment_variant_delta.py --vf realestate")
 
 # %% [markdown]
 # ## Conclusion
 #
 # PR #560 is a **strict low-budget extension** of our merged PR #522, not a correction:
-# identical for every budget ≥ n·η, so the paper's headline reproduction is unchanged. When
+# identical to machine precision for every budget ≥ n·η, so the paper's headline reproduction is unchanged. When
 # presenting OddSHAP we present our merged #522; #560 is the author's addition for the
 # under-determined regime the paper leaves undefined (Algorithm 1: "if m < d·η, revert to GBT").

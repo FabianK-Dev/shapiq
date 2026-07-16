@@ -14,9 +14,9 @@ Design goals
 
 This module owns the *building blocks* — value function, ground truth, estimator
 construction, the interaction-free baseline, and the budget grid. The cluster scripts
-(`reproduction/cluster/`) compose them into the parallel experiment sweeps that write the
-CSVs; the notebooks read those CSVs and plot. Small live demos (e.g. the variant delta,
-the semivalue check) call these building blocks directly.
+(`notebooks/oddshap/cluster/`) compose them into the parallel experiment sweeps that write
+the CSVs; the notebooks read those CSVs and plot. Small live demos (e.g. the variant delta)
+call these building blocks directly.
 """
 
 from __future__ import annotations

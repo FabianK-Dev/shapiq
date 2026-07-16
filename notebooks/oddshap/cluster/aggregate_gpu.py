@@ -4,7 +4,7 @@ trainer writes, so the notebooks read one uniform schema for all eight value fun
 Parses PARTIAL_T1 / PARTIAL_F2 / PARTIAL_ETA lines and writes, per (vf, variant):
     table1_<vf>_<variant>.csv   fig2_<vf>_<variant>.csv   eta_<vf>_<variant>.csv
 
-Usage:  python -m reproduction.cluster.aggregate_gpu --vf vit16 --variant v522_merged \
+Usage:  python notebooks/oddshap/cluster/aggregate_gpu.py --vf vit16 --variant v522_merged \
             --logs "notebooks/oddshap/data/gpu_vit16_v522_merged.log" --out notebooks/oddshap/data
 """
 

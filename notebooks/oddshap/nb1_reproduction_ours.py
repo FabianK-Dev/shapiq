@@ -11,9 +11,9 @@
 # > (the author's PR #560). They are structurally identical by design; NB3 shows the two
 # > produce the same paper-scale numbers.
 #
-# **Provenance.** All numbers are produced by the cluster scripts in `reproduction/cluster/`
-# and written to the gitignored `notebooks/oddshap/data/` folder; this notebook reads them and
-# plots. Regenerate with `bash reproduction/cluster/submit_all.sh v522_merged`.
+# **Provenance.** All numbers are produced by the cluster scripts in `notebooks/oddshap/cluster/`
+# and written to the committed `notebooks/oddshap/data/` folder; this notebook reads them and
+# plots. Regenerate with `bash notebooks/oddshap/cluster/submit_all.sh v522_merged`.
 #
 # **Value function** (paper Table 2): XGBoost + interventional perturbation, 50 background
 # samples; ground truth = exact interventional TreeSHAP (tabular) / exact enumeration (GPU).
