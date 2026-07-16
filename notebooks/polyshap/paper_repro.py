@@ -88,6 +88,8 @@ ALL_METHODS = HIGHER_ORDER + PARTIAL + BASELINES
 
 MAX_BUDGET = 20_000
 N_BUDGET_STEPS = 10
+# Bump when the shape of ``budget_grid`` changes, so cached sweeps recompute.
+BUDGET_GRID_VERSION = 2
 
 # Colours sampled directly from the paper's Figure-2 legend (teal + Material
 # "Deep Orange" ramp) so our plots are visually comparable to the published ones.
@@ -226,7 +228,17 @@ def compute_metrics(est: np.ndarray, exact: np.ndarray) -> dict[str, float]:
 def budget_grid(n: int) -> list[int]:
     lo, hi = n + 1, min(2 ** n, MAX_BUDGET)
     grid = np.round(np.logspace(np.log10(lo), np.log10(hi), N_BUDGET_STEPS)).astype(int)
-    return sorted(set(int(b) for b in grid))
+    grid = sorted(set(int(b) for b in grid))
+    # Densify the final segment. The exact-recovery collapse happens late (just
+    # below the top budget), so a straight line from the second-to-last grid
+    # point to the last one misrepresents it. Insert three points between the
+    # last two grid points - two evenly spaced and one close to the last - to
+    # trace the true curve there.
+    if len(grid) >= 2:
+        b_prev, b_last = grid[-2], grid[-1]
+        extra = {int(round(b_prev + f * (b_last - b_prev))) for f in (0.33, 0.66, 0.92)}
+        grid = sorted(set(grid) | {b for b in extra if b_prev < b < b_last})
+    return grid
 
 
 def run_sweep(data_root: Path, games: list[str], instances: int, methods: list[str],
@@ -301,6 +313,7 @@ def cached_run_sweep(data_root, games: list[str], instances: int, methods: list[
         "games": sorted(games), "instances": instances, "methods": sorted(methods),
         "sampling": sorted("paired" if s else "standard" for s in sampling_modes),
         "seed": seed, "budget_steps": N_BUDGET_STEPS, "max_budget": MAX_BUDGET,
+        "grid_version": BUDGET_GRID_VERSION,
     }
     keystr = json.dumps(key, sort_keys=True)
     digest = hashlib.md5(keystr.encode()).hexdigest()[:10]
