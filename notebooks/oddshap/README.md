@@ -14,7 +14,7 @@ from the authors' code.
 
 | Claim (paper) | Our reproduction |
 |---|---|
-| OddSHAP has the best average rank across value functions (Table 1: **1.50**) | **rank 1 on 7 of 8** value functions, **average rank 1.12** |
+| OddSHAP has the best average rank across value functions (Table 1: **1.50**) | **rank 1 on 7 of 8** value functions, **average rank 1.125** |
 | Accuracy advantage appears once `m > η·d` (Fig. 2) | reproduced on all 8 value functions |
 | Adding odd interactions beats the interaction-free baseline, then over-fits (Fig. 4) | reproduced; same non-monotone shape |
 
