@@ -182,11 +182,15 @@ src/shapiq_games/datasets/data/tabarena_*.csv
 
 shapiq/games/benchmark/precomputed/
 benchmark/results/*
-# ...but keep the long-format results table: it is the record of the sweep and what the
-# cross-method discussion is written against. The plots regenerate from it with --plot.
+# ...but keep each sweep's results table and figures. They are the record of the run and the
+# task-4 deliverable (a benchmarking suite, plus plots of approximation error vs. budget
+# averaged over seeds); the discussion is written against them. Everything else here is
+# intermediate output and stays ignored.
 !benchmark/results/*/
 benchmark/results/*/*
 !benchmark/results/*/results.csv
+!benchmark/results/*/plots/
+!benchmark/results/*/plots/*.png
 precomputed.zip
 game_storage/*
 
