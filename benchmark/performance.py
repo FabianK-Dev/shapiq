@@ -210,6 +210,11 @@ def make_ml_game(dataset_name: str, seed: int):
     return game_fn
 
 
+# Above this many players a percentage of the 2**n coalition space is no longer a budget
+# a sweep can actually run; use --budget-mults (budget = mult * n) for those games.
+PCT_BUDGET_MAX_N = 20
+
+
 def default_game_specs(n_values: list[int]) -> list[GameSpec]:
     specs: list[GameSpec] = []
     for n in n_values:
@@ -838,6 +843,21 @@ def main(argv: list[str] | None = None) -> int:
     csv_path = run_dir / "results.csv"
 
     game_specs = default_game_specs(args.n)
+
+    # `--budgets` are fractions of the 2**n coalition space, which stops being a usable
+    # budget once n grows: on Independent(n=60) even 5% is 5.8e16 evaluations, so the sweep
+    # never returns. Those games are only meaningful with `--budget-mults` (budget = mult*n).
+    if args.budget_mults is None:
+        oversized = [s for s in game_specs if s.n > PCT_BUDGET_MAX_N]
+        if oversized:
+            print(
+                f"Skipping {len(oversized)} game(s) that percentage budgets cannot express: "
+                f"{', '.join(s.name for s in oversized)}. A fraction of 2**n is not a runnable "
+                f"budget above n={PCT_BUDGET_MAX_N}; re-run with --budget-mults to include them.",
+                file=sys.stderr,
+            )
+            game_specs = [s for s in game_specs if s.n <= PCT_BUDGET_MAX_N]
+
     num_budgets = len(args.budget_mults) if args.budget_mults else len(args.budgets)
 
     total = 0

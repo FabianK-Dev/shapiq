@@ -13,20 +13,17 @@ git fetch origin
 git merge origin/wu/conformance-test
 ```
 
-The merge adds two top-level paths only:
+The merge adds one top-level path only:
 
-- `tests/shapiq/tests_unit/tests_approximators/test_approximators_vs_exact.py`
-  — universal interface conformance + numerical convergence + determinism
-  tests across every SV approximator.
 - `benchmark/performance.py` — performance sweep CLI.
+- `benchmark/_discovery.py` — resolves the approximator list at run time.
 - `benchmark/README.md` — this file.
 
 No other files are modified, so the merge is clean by construction.
 
 ## Make sure your approximator is discovered
 
-The benchmark and the conformance tests both source the list of
-approximators **dynamically** from:
+The benchmark sources the list of approximators **dynamically** from:
 
 ```python
 shapiq.approximator.SV_APPROXIMATORS  # list of approximator classes
@@ -71,16 +68,34 @@ OddSHAP                   yes         yes            OK (OddSHAP)
 ## Run the benchmark
 
 ```bash
-# Full default sweep — every registered SV method,
-# SOUM(n in 6/8/10), 4 budgets, 3 seeds, with plots
+# Full default sweep — every registered SV method, 4 budgets, 3 seeds, with plots.
+# Games: SOUM(n in 6/8/10) plus the small ML games (IRIS, California, Diabetes, Adult).
 uv run python -m benchmark.performance --plot
 
 # Restrict to one method — output goes to oddshap_bench_<ts>/
 uv run python -m benchmark.performance --methods OddSHAP --plot
 
+# Include the large ML games (n = 60/79/101) — see "Budgets and game size" below
+uv run python -m benchmark.performance --budget-mults 2,5,10,25 --plot
+
 # Quick smoke run for development
 uv run python -m benchmark.performance \
     --n 6 --budgets 0.25,1.0 --seeds 0
+```
+
+### Budgets and game size
+
+`--budgets` are **fractions of the 2^n coalition space**. That only expresses a runnable
+budget while `n` is small: on `Independent(n=60)` even 5% is 5.8e16 evaluations, so the
+sweep would never return. The default run therefore **skips games above `n=20` and says so
+on stderr** rather than hanging.
+
+To benchmark the large ML games (`Independent`/`Correlated` at n=60, `NHANES` at n=79,
+`Communities` at n=101), use `--budget-mults`, which sizes the budget as `mult * n` — the
+convention the approximator papers use — and applies to every game:
+
+```bash
+uv run python -m benchmark.performance --budget-mults 2,5,10,25 --plot
 ```
 
 Default arguments:
@@ -88,8 +103,9 @@ Default arguments:
 | Flag            | Default                                                       |
 |-----------------|---------------------------------------------------------------|
 | `--methods`     | `all` (every registered SV approximator + the 3 project ones) |
-| `--n`           | `6,8,10` (SOUM player counts)                                 |
-| `--budgets`     | `0.05,0.25,0.5,1.0` (fractions of 2^n)                        |
+| `--n`           | `6,8,10` (SOUM player counts; the ML games are always included) |
+| `--budgets`     | `0.05,0.25,0.5,1.0` (fractions of 2^n; games with n > 20 are skipped) |
+| `--budget-mults`| unset (if given, budget = `mult * n` and every game is included) |
 | `--seeds`       | `0,42,1337`                                                   |
 | `--name`        | derived (`<method>_bench` for a single method, else `sv_sweep`) |
 | `--output-root` | `benchmark/results`                                           |
