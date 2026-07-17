@@ -30,9 +30,9 @@ md(r"""
 
 PolySHAP (Fumagalli et al., *PolySHAP: Extending KernelSHAP with
 Interaction-Informed Polynomial Regression*, ICLR 2026) is now a first-class
-part of this `shapiq` build, exposed as two Shapley-value approximators:
-`PolySHAPKAdd` (full *k*-additive interaction frontier) and `PolySHAPPartial`
-(budget-controlled partial frontier).
+part of this `shapiq` build, exposed as the `PolySHAP` approximator: a full
+*k*-additive interaction frontier via `max_order`, or a budget-controlled partial
+frontier via `max_terms`.
 
 This notebook reproduces the paper's headline figures **from the integrated
 approximators** and places each published panel next to its freshly computed
@@ -44,10 +44,10 @@ independently corroborates the paper's empirical claims.
 
 | Paper method | Integrated `shapiq` approximator |
 |---|---|
-| 1-PolySHAP (KernelSHAP) | `PolySHAPKAdd(n, max_order=1)` |
-| *k*-PolySHAP (*k* = 2, 3, 4) | `PolySHAPKAdd(n, max_order=k)` |
-| 3-PolySHAP (50%) | `PolySHAPPartial(n, n_explanation_terms=1+d+C(d,2)+0.5·C(d,3))` |
-| PolySHAP (log) | `PolySHAPPartial(n, n_explanation_terms=1+d+C(d,2)+d·log C(d,3))` |
+| 1-PolySHAP (KernelSHAP) | `PolySHAP(n, max_order=1)` |
+| *k*-PolySHAP (*k* = 2, 3, 4) | `PolySHAP(n, max_order=k)` |
+| 3-PolySHAP (50%) | `PolySHAP(n, max_terms=1+d+C(d,2)+0.5·C(d,3), max_order=3)` |
+| PolySHAP (log) | `PolySHAP(n, max_terms=1+d+C(d,2)+d·log C(d,3), max_order=3)` |
 | Permutation / SVARM / MSR | `PermutationSamplingSV` / `SVARM` / `UnbiasedKernelSHAP` |
 
 ### Data and ground truth
@@ -365,9 +365,9 @@ md(r"""
 
 On both ResNet18 and ViT16 the integrated approximators reproduce the paper's
 behaviour: MSE falls with interaction order (Figure 2), and paired KernelSHAP
-collapses onto 2-PolySHAP (Figure 3). The `PolySHAPKAdd` and `PolySHAPPartial`
-approximators are therefore a faithful, fully integrated implementation of
-PolySHAP in `shapiq`, and the paper's empirical claims hold on these games.
+collapses onto 2-PolySHAP (Figure 3). The `PolySHAP` approximator is therefore a
+faithful, fully integrated implementation of PolySHAP in `shapiq`, and the paper's
+empirical claims hold on these games.
 
 All sweep results are cached under `cache/`; all panels are saved under
 `plots/`. Increasing `INSTANCES` tightens the error bands (the paper averages

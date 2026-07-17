@@ -3,8 +3,9 @@
 This module is the engine behind ``validate_polyshap_integration.ipynb``. It
 validates two things at once:
 
-1. The integration of PolySHAP into shapiq (``PolySHAPKAdd`` / ``PolySHAPPartial``)
-   behaves as the paper's ``PolySHAP`` + ``ExplanationFrontierGenerator`` API did.
+1. The integration of PolySHAP into shapiq (the ``PolySHAP`` approximator, in its
+   ``max_order`` and ``max_terms`` modes) behaves as the paper's ``PolySHAP`` +
+   ``ExplanationFrontierGenerator`` API did.
 2. The paper's central empirical claims (Fumagalli et al., 2026, ICLR):
      * Fig. 2 - higher-order PolySHAP improves approximation quality
        (3-PolySHAP < 2-PolySHAP < 1-PolySHAP=KernelSHAP in MSE, given budget).
@@ -18,10 +19,10 @@ project's code or its vendored shapiq fork.
 
 Method -> integrated API mapping
 --------------------------------
-    1-PolySHAP (KernelSHAP)  -> PolySHAPKAdd(max_order=1)
-    k-PolySHAP  (k=2,3,4)    -> PolySHAPKAdd(max_order=k)
-    3-PolySHAP(50%)          -> PolySHAPPartial(1+d+C(d,2)+0.5*C(d,3) terms)
-    PolySHAP(log)            -> PolySHAPPartial(1+d+C(d,2)+d*log(C(d,3)) terms)
+    1-PolySHAP (KernelSHAP)  -> PolySHAP(max_order=1)
+    k-PolySHAP  (k=2,3,4)    -> PolySHAP(max_order=k)
+    3-PolySHAP(50%)          -> PolySHAP(max_terms=1+d+C(d,2)+0.5*C(d,3), max_order=3)
+    PolySHAP(log)            -> PolySHAP(max_terms=1+d+C(d,2)+d*log(C(d,3)), max_order=3)
     Permutation / SVARM / MSR-> PermutationSamplingSV / SVARM / UnbiasedKernelSHAP
 
 It can also be run as a standalone CLI::
@@ -46,7 +47,7 @@ from scipy.stats import spearmanr
 
 from shapiq import ExactComputer
 from shapiq.approximator import PermutationSamplingSV, SVARM, UnbiasedKernelSHAP
-from shapiq.approximator.regression.polyshap import PolySHAPKAdd, PolySHAPPartial
+from shapiq.approximator import PolySHAP
 
 # --------------------------------------------------------------------------- #
 # Configuration
@@ -164,29 +165,29 @@ def make_method(name: str, n: int, random_state: int, paired: bool):
     weights = np.ones(n + 1)  # order-1 leverage scores == uniform over subset sizes
 
     if name == "1-PolySHAP":
-        return PolySHAPKAdd(n=n, max_order=1, sampling_weights=weights,
-                            pairing_trick=paired, random_state=random_state)
+        return PolySHAP(n=n, max_order=1, sampling_weights=weights,
+                        pairing_trick=paired, random_state=random_state)
     if name in ("2-PolySHAP", "3-PolySHAP", "4-PolySHAP"):
         k = int(name[0])
-        return PolySHAPKAdd(n=n, max_order=k, sampling_weights=weights,
-                            pairing_trick=paired, random_state=random_state)
+        return PolySHAP(n=n, max_order=k, sampling_weights=weights,
+                        pairing_trick=paired, random_state=random_state)
     if name == "2-PolySHAP(50%)":
         # singletons + 50% of the pairwise interactions
         n_terms = int(1 + n + 0.5 * comb(n, 2))
         n_terms = min(n_terms, full_kadd_terms(n, 2))
-        return PolySHAPPartial(n=n, n_explanation_terms=n_terms, sampling_weights=weights,
-                               pairing_trick=paired, random_state=random_state)
+        return PolySHAP(n=n, max_terms=n_terms, max_order=2, sampling_weights=weights,
+                        pairing_trick=paired, random_state=random_state)
     if name == "3-PolySHAP(50%)":
         n_terms = int(1 + n + comb(n, 2) + 0.5 * comb(n, 3))
         n_terms = min(n_terms, full_kadd_terms(n, 3))
-        return PolySHAPPartial(n=n, n_explanation_terms=n_terms, sampling_weights=weights,
-                               pairing_trick=paired, random_state=random_state)
+        return PolySHAP(n=n, max_terms=n_terms, max_order=3, sampling_weights=weights,
+                        pairing_trick=paired, random_state=random_state)
     if name == "PolySHAP(log)":
         c3 = max(comb(n, 3), 2.0)
         n_terms = int(1 + n + comb(n, 2) + n * math.log(c3))
         n_terms = min(n_terms, full_kadd_terms(n, 3))
-        return PolySHAPPartial(n=n, n_explanation_terms=n_terms, sampling_weights=weights,
-                               pairing_trick=paired, random_state=random_state)
+        return PolySHAP(n=n, max_terms=n_terms, max_order=3, sampling_weights=weights,
+                        pairing_trick=paired, random_state=random_state)
     if name == "Permutation":
         return PermutationSamplingSV(n=n, pairing_trick=paired, random_state=random_state)
     if name == "SVARM":

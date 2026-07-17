@@ -18,27 +18,24 @@ from typing import Any
 PROJECT_APPROXIMATOR_NAMES: tuple[str, ...] = (
     "LeverageSHAP",
     "OptimizedKernelSHAP",
-    "PolySHAPKAdd",
-    "PolySHAPPartial",
+    "PolySHAP",
     "OddSHAP",
 )
 
 
 # Approximators that are registered in ``SV_APPROXIMATORS`` but deliberately
-# kept out of the cross-method benchmark/conformance suite. ``PolySHAPPrior``
-# needs a handcrafted ``q_prior`` (per-game prior interaction knowledge), so a
-# generic budget-vs-error sweep does not give it a meaningful, comparable input.
-EXCLUDED_APPROXIMATOR_NAMES: frozenset[str] = frozenset({
-    "PolySHAPPrior",
-})
+# kept out of the cross-method benchmark/conformance suite.
+EXCLUDED_APPROXIMATOR_NAMES: frozenset[str] = frozenset()
 
 
 # Method-specific construction overrides for classes whose constructor needs
 # more than ``(n=n, random_state=...)``. Each entry is callable
 # ``(n: int) -> dict[str, Any]`` returning the extra kwargs to merge in.
+# ``PolySHAP`` runs with a 2-additive frontier (``max_order=1`` would reduce to
+# plain KernelSHAP); its other modes (``max_terms``/``prior_frontier``) are not
+# part of the generic budget-vs-error sweep.
 _SV_CONSTRUCT_OVERRIDES: dict[str, Any] = {
-    "PolySHAPKAdd": lambda _n: {"max_order": 1},
-    "PolySHAPPartial": lambda n: {"n_explanation_terms": n + 1},
+    "PolySHAP": lambda _n: {"max_order": 2},
 }
 
 
@@ -90,8 +87,7 @@ def construct_for_sv(
     Construction strategy, in order:
 
     1. A method-specific override from ``_SV_CONSTRUCT_OVERRIDES`` (covers
-       classes like ``PolySHAPKAdd`` whose constructor requires
-       ``max_order`` or ``n_explanation_terms``).
+       classes like ``PolySHAP`` whose constructor takes a ``max_order``).
     2. The multi-index signature
        ``Approx(n=n, index='SV', max_order=1, random_state=...)`` —
        covers ``SPEX / ProxySPEX / ProxySHAP / RegressionMSR / kADDSHAP``
