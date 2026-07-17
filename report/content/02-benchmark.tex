@@ -166,9 +166,56 @@ magnitudes.
     \end{tabular}
 \end{table}
 
-The orderings at least do not depend on the metric: under the relative $\ell_2$ error that
+\subsection*{What the error metric hides}
+
+The orderings survive a change of \emph{error} metric --- under the relative $\ell_2$ error that
 \citet{Witter.2025a} reports, \leverageshap{} still leads the small games ($3.64$ to \polyshap{}'s
-$3.77$) and \oddshap{} still leads the large ($1.71$ to \leverageshap{}'s $3.22$).
+$3.77$) and \oddshap{} still the large ($1.71$ to $3.22$). They do not survive a change of
+\emph{question}. Table~\ref{tab:benchmark:metrics} reranks the large games by how well each method
+recovers the feature \emph{ordering} rather than the values, and the result is close to an
+inversion.
+
+\begin{table}[H]
+    \centering
+    \caption[Rank under three metrics, and cost, large games]{Mean rank on the large games under
+        squared error, top-5 precision and rank correlation, with the median cost of one estimate.
+        The three approximators added here are in bold. Each wins on magnitude and loses on
+        ordering; two plain samplers do the reverse, at a fraction of the cost.}
+    \label{tab:benchmark:metrics}
+    \begin{tabular}{@{}lcccr@{}}
+        \toprule
+        Method & MSE & Precision@5 & Kendall's $\tau$ & Cost (s) \\
+        \midrule
+        \textbf{\oddshap{}}        & \textbf{1.34} & 6.67           & 4.68          & 0.171 \\
+        \textbf{\leverageshap{}}   & 2.69          & \textbf{4.28}  & 6.48          & 0.016 \\
+        \textbf{\polyshap{}}       & 5.94          & 10.04          & 7.47          & 0.720 \\
+        \midrule
+        PermutationSamplingSV      & 5.91          & 6.23           & \textbf{1.85} & \textbf{0.008} \\
+        OwenSamplingSV             & 7.72          & 5.23           & 2.71          & 0.266 \\
+        RegressionMSR              & 5.17          & 7.27           & 6.87          & 0.124 \\
+        OptimizedKernelSHAP        & 4.58          & 9.46           & 8.15          & 0.041 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+The pattern is a family trait, not a quirk of one method. All three approximators added here are
+regression estimators fitting a least-squares objective --- which is what MSE rewards --- and all
+three lose the ordering metrics to samplers that estimate each player's marginal contribution
+directly. Permutation and Owen sampling take the top two places on Kendall's $\tau$ while sitting
+sixth and ninth on MSE; \oddshap{} inverts it exactly, first on MSE and sixth on Precision@5.
+Minimising squared error over a sparse support recovers the large coefficients and leaves the
+near-ties among the small ones in the residual, where MSE cannot see them and an ordering cannot
+survive them. Since a Shapley value is usually read as a ranking of features rather than a vector
+of magnitudes, this is the sharpest "where do they lose" the benchmark has to offer --- and none of
+the three papers reports it, because all three evaluate on error, as does the rest of this chapter.
+
+Cost splits the three the same way and answers the obvious objection to \oddshap{}: its screening
+step fits a gradient-boosted tree, so one might expect its accuracy to be bought with time. It is,
+but the price is modest --- $0.171$\,s against \leverageshap{}'s $0.016$\,s, both far below SPEX's
+$3.2$\,s or ProxySPEX's $6.3$\,s. The three trade off cleanly rather than dominating one another:
+\leverageshap{} is the cheapest of them and second on error; \oddshap{} pays eleven times that for
+first place; \polyshap{} pays forty-five times and still finishes sixth at these dimensions, which
+is the same fixed-order support that costs it the large games showing up on the clock as well.
 
 One deviation is worth stating rather than smoothing. \citet{Fumagalli.2026} reports that at low
 dimension \oddshap{} performs \emph{like} RegressionMSR; here it is ahead, $4.51$ against $5.62$.

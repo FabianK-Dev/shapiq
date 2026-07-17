@@ -1,66 +1,46 @@
 % ==================================================
 % 1. Abstract and introduction
 %
-% Deliberately no numbered subsections: cleanthesis section headings are tall, and an
-% introduction this short does not need a table of contents of its own. Paragraph breaks
-% carry the structure instead.
+% Budget: three quarters of a page, abstract included. It is an entry point, not a summary
+% of the report -- every claim here is made properly in the chapter it belongs to. No
+% numbered subsections: cleanthesis headings are tall and this is too short to need them.
 % ==================================================
 \chapter{Abstract and Introduction}
 \label{sec:introduction}
 
-\section*{Abstract}
-
+% The chapter title already says "Abstract", so a heading here would only repeat it. Set the
+% abstract apart typographically instead; the first \paragraph below marks where it ends.
+\begin{quotation}
+\noindent
 We add three recent Shapley-value approximators to \shapiq{} --- \leverageshap{}
 \citep{Witter.2025a}, \polyshap{} \citep{Fumagalli.2026a} and \oddshap{}
 \citep{Fumagalli.2026} --- reproduce each paper from the resulting implementation, and
-benchmark all three against every approximator \shapiq{} already provides on one shared
-testbed. Each paper's headline claim holds, and holds on a value function none of the three
-papers uses: \oddshap{} leads on the high-dimensional games once the budget passes the
-threshold its paper predicts, \leverageshap{} beats optimised KernelSHAP at every dimension,
-and \polyshap{} is strongest at low dimension and degrades at high, for the reason its own
-paper gives. The comparison also shows that no single ordering of the three exists. Averaged
-over all games \leverageshap{} ranks best; restricted to the games above sixty players
-\oddshap{} does, by a wide margin. Which of those two numbers is the answer depends on the
-dimension a reader cares about, and reporting either alone would misrepresent the other.
-
-% --------------------------------------------------
-% The introduction runs as continuous prose. Roughly one paragraph per block.
-% --------------------------------------------------
-
-\paragraph{What this report is.}
-The Shapley value assigns each feature its average marginal contribution over all $2^d$
-coalitions, which is why every practical use of it rests on an approximator. This report covers
-three recent ones. We implemented each in \shapiq{} \citep{Muschalik.2024b}, reproduced the
-experiments of the paper that introduced it, and then compared all three against the
-approximators \shapiq{} already had. Chapter~\ref{sec:benchmark} is the comparison that puts
-every method on the same footing; Chapters~\ref{sec:oddshap} to~\ref{sec:polyshap} take each
-approximator on its own terms, first summarising its paper, then reproducing it.
+benchmark all three against every approximator \shapiq{} already provides. Each paper's
+headline claim holds, and holds on a value function none of the three papers uses. No single
+ordering of the methods exists: averaged over all games \leverageshap{} ranks best, but over
+the games above sixty players \oddshap{} leads by a wide margin. Which number is the answer
+depends on the dimension a reader cares about.
+\end{quotation}
 
 \paragraph{What we did.}
-Three approximators were implemented and submitted upstream. \oddshap{} is merged
-(PR~\#522, with a follow-up in PR~\#560); \leverageshap{} (PR~\#524) and \polyshap{}
-(PR~\#559) are open at the time of writing. Each has a reproduction of its paper, driven by
-committed result tables so that every figure re-renders offline in minutes, without a GPU and
-without re-running the experiments. On top of those, the cross-method benchmark of
-Chapter~\ref{sec:benchmark} runs every approximator registered in \shapiq{} over a shared set
-of eleven games, twelve budgets and ten explained predictions --- 19{,}800 cells in total.
-Two defects in \shapiq{} surfaced while the benchmark was being built and are fixed alongside
-this work: the ViT value function moved its model to the GPU but left its normalisation
-parameters on the CPU, so it could not run there at all; and the placeholder classes that stand
-in for the optional \texttt{sparse} and \texttt{shapleig} extras were abstract, so a missing
-dependency was reported as a broken approximator rather than as a missing dependency.
+The Shapley value averages a feature's marginal contribution over all $2^d$ coalitions, so
+every practical use of it rests on an approximator. We implemented three recent ones in
+\shapiq{} \citep{Muschalik.2024b} and submitted them upstream: \oddshap{} is merged
+(PR~\#522, follow-up PR~\#560); \leverageshap{} (PR~\#524) and \polyshap{} (PR~\#559) are
+open. Each has a reproduction of its own paper that re-renders offline from committed result
+tables, without a GPU. Chapter~\ref{sec:benchmark} then compares all three against the
+existing \shapiq{} approximators over eleven games, twelve budgets and ten explained
+predictions --- 19{,}800 cells. Two \shapiq{} defects surfaced on the way and are fixed here:
+the ViT value function left its normalisation parameters on the CPU and so could not run on a
+GPU at all, and the placeholders for the optional extras were abstract, reporting a missing
+dependency as a broken approximator.
 
-\paragraph{How to read it, and one distinction that runs through it.}
-The report answers two different questions, and they need different setups. A
-\emph{reproduction} asks whether a paper's claim survives re-implementation; it has to use that
-paper's own value function, or it tests nothing. The three papers do not share one --- \oddshap{}
-alone trains XGBoost classifiers and defines its tabular value function by interventional
-perturbation over fifty background instances. The \emph{benchmark} asks how the methods compare
-with each other and with what \shapiq{} already had; it has to use a single value function for
-every method, which then belongs to no paper in particular. The consequence is worth stating
-before any table is read: the absolute errors in Chapter~\ref{sec:benchmark} and those in
-Chapters~\ref{sec:oddshap} to~\ref{sec:polyshap} are different quantities, measured against
-different targets, and comparing them across chapters is meaningless. Within each chapter they
-are directly comparable, which is what each chapter is for. That the papers' claims survive the
-move to a value function none of them chose is the stronger result, and it is only visible
-because the two settings are kept apart.
+\paragraph{Two questions, two setups.}
+The report answers two questions that need different settings, and conflating them makes the
+chapters look contradictory. A \emph{reproduction} asks whether a paper's claim survives
+re-implementation, so it must use that paper's value function --- and the three papers do not
+share one. The \emph{benchmark} asks how the methods compare with each other, so it must use
+one value function for all of them, which then belongs to no paper. Absolute errors are
+therefore comparable \emph{within} a chapter and meaningless \emph{across} chapters. That the
+claims survive a value function none of the papers chose is the stronger result, and it is
+only visible because the two settings are kept apart.
