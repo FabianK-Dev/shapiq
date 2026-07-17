@@ -1,10 +1,9 @@
 """Generate polyshap_maxorder_vs_k.ipynb.
 
-A self-contained showcase notebook (no paper assets, no precomputed-game data,
-no reference implementation). It constructs three controlled *k-additive* games
-with a known intrinsic interaction order ``k = 3`` and shows how the integrated
-``PolySHAP`` approximator behaves as its ``max_order`` is swept across that
-threshold, with `shapiq`'s own ``KernelSHAP`` drawn as a blue baseline.
+Constructs three controlled *k-additive* games with a known intrinsic interaction
+order ``k = 3`` and shows how the integrated ``PolySHAP`` approximator behaves as
+its ``max_order`` is swept across that threshold, with `shapiq`'s own
+``KernelSHAP`` drawn as a blue baseline.
 
 Expected behaviour (this is exactly what the notebook visualises):
 
@@ -12,9 +11,6 @@ Expected behaviour (this is exactly what the notebook visualises):
     max_order = 2  (< k)   improves over KernelSHAP
     max_order = 3  (= k)   captures the game exactly -> best estimator
     max_order = 4  (> k)   no further gain, but needs a much larger budget
-
-Run ``python notebooks/polyshap/build_maxorder_notebook.py`` to (re)write the
-notebook next to this script.
 """
 
 from __future__ import annotations
@@ -39,9 +35,8 @@ def code(src: str) -> None:
 md(r"""
 # PolySHAP in `shapiq`: how `max_order` should track the game's interaction order
 
-The earlier notebook (`polyshap_reproduction.ipynb`) reproduced the paper on
-*real* explanation games, where the true interaction structure is unknown and
-higher orders keep helping. This notebook asks a sharper, controlled question:
+On *real* explanation games the true interaction structure is unknown and higher
+orders keep helping. This notebook asks a sharper, controlled question:
 
 > If a game's interactions genuinely stop at order **k**, what is the *right*
 > `max_order` to give `PolySHAP` — and what happens on either side of it?
@@ -63,16 +58,14 @@ Sweeping `PolySHAP(max_order=...)` against this known `k = 3` should show:
 We show the same behaviour across **three different non-trivial games** of growing
 size. `shapiq`'s `KernelSHAP` is included as a blue baseline; `1-PolySHAP` (teal)
 should sit right on top of it, confirming the reduction.
-
-This is a *showcase*: small `N` and small games keep it laptop-friendly.
 """)
 
 # --------------------------------------------------------------------------- #
 md(r"""
 ## 0 · Setup
 
-Everything is self-contained — only `numpy`/`matplotlib` and the integrated
-`shapiq` approximators are used. Figures are written to `plots/`.
+Only `numpy`/`matplotlib` and the integrated `shapiq` approximators are used.
+Figures are written to `plots/`.
 """)
 
 code(r"""
@@ -108,9 +101,8 @@ print("plots ->", PLOTS_DIR)
 md(r"""
 ## 1 · Colour scheme and legend
 
-The same colour-per-order scheme as the reproduction notebook (teal → amber →
-deep orange → dark red for orders 1–4), plus **`KernelSHAP` in blue** as the
-explicit baseline.
+A colour-per-order scheme (teal → amber → deep orange → dark red for orders 1–4),
+plus **`KernelSHAP` in blue** as the explicit baseline.
 """)
 
 code(r"""
@@ -204,13 +196,12 @@ md(r"""
 under-determined, so we skip it — and this is precisely the cost of going to a
 higher order: a degree-4 frontier only becomes affordable far to the right.
 
-For each game we average over `N_INSTANCES = 3` random instances (kept small so
-the showcase runs quickly) and sweep the budget log-spaced from `n+1` up to full
-enumeration `2**n`.
+For each game we average over `N_INSTANCES = 3` random instances and sweep the
+budget log-spaced from `n+1` up to full enumeration `2**n`.
 """)
 
 code(r"""
-N_INSTANCES = 3   # instances averaged per game (small = fast; it's a showcase)
+N_INSTANCES = 3   # random instances averaged per game (mean ± SEM)
 SEED = 40
 N_BUDGET_STEPS = 14
 MSE_FLOOR = 1e-12  # log-axis floor; exact (k>=3) fits land here

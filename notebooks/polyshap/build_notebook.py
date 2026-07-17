@@ -114,18 +114,15 @@ md(r"""
 ## Hyperparameters
 
 `N_INSTANCES` is the number of explanation games averaged per point (each curve
-is the mean ± SEM over these instances). **The paper uses 30**; we keep it small
-here so the sweep runs quickly on a laptop. Because the standard error of the
-mean scales as 1/√N, a smaller `N_INSTANCES` gives proportionally **wider error
-bands** than the paper — this is the main reason our shaded bands look larger.
-Raise `N_INSTANCES` toward `PAPER_INSTANCES` to reproduce the paper's tightness
-(the result is cached afterwards).
+is the mean ± SEM over these instances). The paper uses 30; this notebook uses a
+smaller number, so — because the standard error of the mean scales as 1/√N — the
+shaded error bands here are proportionally **wider** than the paper's.
 """)
 
 code(r"""
 import math
 
-N_INSTANCES = 5       # instances averaged here (small = fast on a laptop)
+N_INSTANCES = 5       # explanation games averaged per point (mean ± SEM)
 PAPER_INSTANCES = 30  # the value used in the paper, for reference
 
 sem_factor = math.sqrt(PAPER_INSTANCES / N_INSTANCES)
