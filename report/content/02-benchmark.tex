@@ -177,12 +177,20 @@ $d = 14$–$16$) and the value function differs, so the two are not in contradic
 not the same statement either.
 
 \paragraph{Threats to validity.}
-Coverage is uneven, so average ranks across methods that ran in different numbers of cells are not
-directly comparable. \oddshap{} declines 50 cells, all at $m = d$ or $2d$ on the four smallest
-games where the budget falls below its minimum of $\eta = 10$; it declines none of the 480 large
-ones. SPEX declines 680, ProxySPEX 10. ShaplEIG is registered but needs an uninstalled extra and is
-skipped in all $1{,}320$ of its cells. Ten predictions make the quartiles a coarse envelope, not a
-confidence interval. The small/large split is a gap in the grid rather than a principled threshold:
-no game sits between $n = 12$ and $n = 60$, so where the inversion happens is untested. Finally,
-FourierSHAP and the fixed-budget FFD variants belong to \citet{Fumagalli.2026}'s comparison but are
-absent from \shapiq{}, so the baselines are that paper's set intersected with what exists.
+Five, in descending order of how much they would change a conclusion.
+
+\begin{itemize}\setlength\itemsep{0.15em}
+    \item \textbf{Uneven coverage.} Average ranks across methods that ran in different numbers of
+        cells are not directly comparable. \oddshap{} declines 50 --- all at $m = d$ or $2d$ on the
+        four smallest games, below its minimum of $\eta = 10$ --- and none of the 480 large ones.
+        SPEX declines 680, ProxySPEX 10.
+    \item \textbf{Where the inversion happens is untested.} No game sits between $n = 12$ and
+        $n = 60$, so the small/large split is a gap in the grid, not a measured threshold.
+    \item \textbf{Coarse bands.} Ten predictions make the quartiles an envelope, not a confidence
+        interval.
+    \item \textbf{An incomplete baseline set.} FourierSHAP and the fixed-budget FFD variants are in
+        \citet{Fumagalli.2026}'s comparison but absent from \shapiq{}, so the baselines here are
+        that paper's set intersected with what exists.
+    \item \textbf{One method never ran.} ShaplEIG is registered but needs an uninstalled extra, and
+        is skipped in all $1{,}320$ of its cells.
+\end{itemize}

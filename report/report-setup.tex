@@ -49,8 +49,19 @@
 % cleanthesis sets BCOR=25mm, a binding correction for a printed and bound thesis. This
 % report is read on screen and single-sided, so that 25mm is not swallowed by a binding --
 % it just pushes every page to the right. Drop it and recompute the type area.
-\KOMAoptions{BCOR=0mm, DIV=12}
+% DIV=12 is the thesis type area: a narrow block with wide margins to rest the eye over 60
+% pages. A report is read in one sitting, so widen it. BCOR=25mm is a binding correction for
+% a bound thesis; nothing binds this, and the 25mm only pushes every page right.
+\KOMAoptions{BCOR=0mm, DIV=14}
 \recalctypearea
+
+% cleanthesis leaves 2.5 blank lines under every chapter heading and generous room around
+% section headings. That is thesis pacing. Tighten it: five chapters do not need a page of
+% air between them and their first sentence.
+\renewcommand*\chapterheadendvskip{\vspace*{1.1\baselineskip}}
+\RedeclareSectionCommand[beforeskip=-1.6ex plus -0.5ex, afterskip=0.9ex plus 0.2ex]{section}
+\RedeclareSectionCommand[beforeskip=-1.2ex plus -0.4ex, afterskip=0.6ex plus 0.2ex]{subsection}
+\RedeclareSectionCommand[beforeskip=-1ex plus -0.3ex, runin=true]{paragraph}
 
 % cleanthesis leaves the head empty and puts the running mark and the page number in the
 % footer. It redefines the footer for `plain` as well, but KOMA's own centred
