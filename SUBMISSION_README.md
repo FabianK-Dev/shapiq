@@ -62,3 +62,7 @@ We implemented a command-line benchmarking suite to evaluate the new approximato
 *   **Final Report**: The LaTeX source files for our final project report are located in the `report/` directory:
     *   Main file: `report/new-shapley-value-approximators.tex`
     *   Compiled figures: `report/figures/`
+
+---
+
+Additionally, you can view all individual changes and new files compared to the main branch on `mmschlk/shapiq` here: https://github.com/mmschlk/shapiq/compare/main...FabianK-Dev:shapiq:main
