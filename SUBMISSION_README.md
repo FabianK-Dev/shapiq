@@ -35,7 +35,6 @@ Our LeverageSHAP reproduction contains four active notebooks mapping to the pape
         *   *Content*: Concise mathematical summary of LeverageSHAP. Covers the reformulation of the unconstrained least-squares regression via row-centering and geometric projection, the analytical closed-form derivation of leverage scores ($\ell_s = \binom{n}{s}^{-1}$), the expected budget binary search, and the non-asymptotic $O(n \log n)$ convergence bounds (Theorem 1.1).
     *   `leverageshap_discussion.pdf` (**Empirical Evaluation & Discussion**):
         *   *Content*: Detailed analysis of our benchmarking results. Validates the five paper-derived hypotheses (behavior under small budgets, $m \to 2^n$ convergence, large-$n$ scaling, and high-$\gamma$ plateaus). Includes wall-clock runtime profiling proving LeverageSHAP is $2\times$ to $3\times$ faster than Optimized KernelSHAP due to its SVD-backed solver and uniform size-weighting.
-    *   *Note: The LaTeX files inside `report/content/` (such as `04-leverageshap.tex`) were template skeletons and can be ignored; the official discussion and theoretical summaries are contained entirely within these two PDFs and the notebooks.*
 
 #### 🔹 PolySHAP
 *   **Summary Document**: polyshap_summary.md` (A summary of the paper's theory and our integration into shapiq).
