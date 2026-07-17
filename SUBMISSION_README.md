@@ -29,7 +29,7 @@ Our LeverageSHAP reproduction contains four active notebooks mapping to the pape
         *   *Purpose*: Isolates the benefit of leverage-score sampling against a uniform-weight KernelSHAP baseline across 25 configurations.
         *   *Key Findings*: Validates consistently lower errors and smoother convergence trends for leverage-score sampling.
     *   `notebooks/leverageshap/reproduce_LeverageSHAP_custom_vs_LeverageSHAPWo2c.ipynb` (**The 2c Threshold Analysis**):
-        *   *Purpose*: Isolates the mechanism of the $2c$ boundary threshold against a flat-budget variant and the standard `CoalitionSampler`.
+        *   *Purpose*: Studies the exact mechanism of the $2c$ boundary threshold by contrasting the full custom algorithm against a flat-budget variant and a version utilizing the standard `CoalitionSampler`.
         *   *Key Findings*: Proves that the $2c$ threshold improves accuracy by allowing deterministic, zero-variance enumeration of low-cardinality layers ($s=1, 2$).
 
 *   **Summary & Discussion PDFs (located in the root directory)**:
@@ -47,10 +47,12 @@ Our LeverageSHAP reproduction contains four active notebooks mapping to the pape
 
 #### 🔹 OddSHAP
 *   **Summary Document**: `oddshap_summary.md` (A detailed summary of the paper's theory and our implementation deviations).
-*   **Reproduction Notebooks**:
+*   **Reproduction Notebooks (located in `notebooks/oddshap/`)**: Three notebooks containing our #522 reproduction, the same reproduction re-run against #560, and a side-by-side comparison of the two.
     *   `notebooks/oddshap/oddshap_reproduction.ipynb`: Reproduces the core figures and Table 1 using our merged implementation (PR #522).
     *   `notebooks/oddshap/oddshap_reproduction_author.ipynb`: Runs the same suite against the author's follow-up changes (PR #560).
     *   `notebooks/oddshap/oddshap_comparison.ipynb`: A direct comparison proving both versions yield identical results in the paper-scale budget regime.
+*   **OddSHAP README**: `notebooks/oddshap/README.md` (Covers the directory layout, experimental setup, and limitations of the reproduction runs).
+*   **Notebooks Index**: `notebooks/README.md` (An index of where each approximator's notebooks live).
 *   **Harness & Raw Data**: Located in `notebooks/oddshap/data/` (committed results allowing offline rendering) and `notebooks/oddshap/core/`.
 
 ---
