@@ -191,6 +191,10 @@ benchmark/results/*/*
 !benchmark/results/*/results.csv
 !benchmark/results/*/plots/
 !benchmark/results/*/plots/*.png
+!benchmark/results/*/plots_*/
+!benchmark/results/*/plots_*/*.png
+!benchmark/results/*/plots_*/*.md
+!benchmark/results/*/README.md
 precomputed.zip
 game_storage/*
 

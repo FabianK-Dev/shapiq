@@ -532,9 +532,13 @@ class PlotStyle:
         (Okabe-Ito) against markers and dash patterns instead, so each method is
         identifiable by shape and stroke and never by colour alone.
         """
+        # The cycle lengths are coprime, so colour, marker and dash advance together and no
+        # combination repeats until well past the number of registered approximators. Marker
+        # and dash therefore vary from the first series, which matters when a plot holds only
+        # a handful of methods and every one of them would otherwise be a solid circle.
         colour = OKABE_ITO[index % len(OKABE_ITO)]
-        marker = _MARKERS[(index // len(OKABE_ITO)) % len(_MARKERS)]
-        dashes = _DASHES[(index // len(OKABE_ITO)) % len(_DASHES)]
+        marker = _MARKERS[index % len(_MARKERS)]
+        dashes = _DASHES[index % len(_DASHES)]
         return {"color": colour, "linestyle": dashes, "marker": marker, "linewidth": 1.5}
 
     def get_fill_alpha(self) -> float:
