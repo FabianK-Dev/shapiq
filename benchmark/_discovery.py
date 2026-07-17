@@ -28,9 +28,11 @@ PROJECT_APPROXIMATOR_NAMES: tuple[str, ...] = (
 # kept out of the cross-method benchmark/conformance suite. ``PolySHAPPrior``
 # needs a handcrafted ``q_prior`` (per-game prior interaction knowledge), so a
 # generic budget-vs-error sweep does not give it a meaningful, comparable input.
-EXCLUDED_APPROXIMATOR_NAMES: frozenset[str] = frozenset({
-    "PolySHAPPrior",
-})
+EXCLUDED_APPROXIMATOR_NAMES: frozenset[str] = frozenset(
+    {
+        "PolySHAPPrior",
+    }
+)
 
 
 # Method-specific construction overrides for classes whose constructor needs
