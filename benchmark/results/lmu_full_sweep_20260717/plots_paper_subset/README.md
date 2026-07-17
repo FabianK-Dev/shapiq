@@ -39,9 +39,10 @@ the OddSHAP paper does not use them as baselines.
 
 ## Reading these
 
-Same conventions as the full set: each point is the median over five seeds with an interquartile
-band; every series has its own colour, marker and dash pattern, and none is identified by colour
-alone.
+Same conventions as the full set: each point is the median over the ten explained predictions
+with an interquartile band across them. Solid curves are the three approximators this project
+contributed, dashed are the baselines; colour and marker identify the individual method, and no
+series is identified by colour alone.
 
 These are still the benchmark's value function — features masked against a single baseline row,
 `XGBRegressor` — not the OddSHAP paper's, which uses XGBoost classifiers and interventional
