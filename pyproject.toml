@@ -124,6 +124,10 @@ minversion = "8.0"
 line-length = 100
 target-version = "py312"
 src = ["tests", "src", "docs"]
+# Notebooks and the benchmark runner are research scripts, not library code: the strict
+# `select = ["ALL"]` rules below (type annotations, no print, no magic numbers, ...) are
+# meant for src/ and tests/, which stay clean. They are still auto-formatted.
+extend-exclude = ["notebooks", "benchmark"]
 
 [tool.ruff.lint]
 # we allow star arguments to be of type Any e.g. def func(*args: Any, **kwargs: Any) -> None: is ok
