@@ -3,8 +3,9 @@
 This module is the engine behind ``validate_polyshap_integration.ipynb``. It
 validates two things at once:
 
-1. The integration of PolySHAP into shapiq (``PolySHAPKAdd`` / ``PolySHAPPartial``)
-   behaves as the paper's ``PolySHAP`` + ``ExplanationFrontierGenerator`` API did.
+1. The integration of PolySHAP into shapiq (the ``PolySHAP`` approximator, in its
+   ``max_order`` and ``max_terms`` modes) behaves as the paper's ``PolySHAP`` +
+   ``ExplanationFrontierGenerator`` API did.
 2. The paper's central empirical claims (Fumagalli et al., 2026, ICLR):
      * Fig. 2 - higher-order PolySHAP improves approximation quality
        (3-PolySHAP < 2-PolySHAP < 1-PolySHAP=KernelSHAP in MSE, given budget).
@@ -18,10 +19,10 @@ project's code or its vendored shapiq fork.
 
 Method -> integrated API mapping
 --------------------------------
-    1-PolySHAP (KernelSHAP)  -> PolySHAPKAdd(max_order=1)
-    k-PolySHAP  (k=2,3,4)    -> PolySHAPKAdd(max_order=k)
-    3-PolySHAP(50%)          -> PolySHAPPartial(1+d+C(d,2)+0.5*C(d,3) terms)
-    PolySHAP(log)            -> PolySHAPPartial(1+d+C(d,2)+d*log(C(d,3)) terms)
+    1-PolySHAP (KernelSHAP)  -> PolySHAP(max_order=1)
+    k-PolySHAP  (k=2,3,4)    -> PolySHAP(max_order=k)
+    3-PolySHAP(50%)          -> PolySHAP(max_terms=1+d+C(d,2)+0.5*C(d,3), max_order=3)
+    PolySHAP(log)            -> PolySHAP(max_terms=1+d+C(d,2)+d*log(C(d,3)), max_order=3)
     Permutation / SVARM / MSR-> PermutationSamplingSV / SVARM / UnbiasedKernelSHAP
 
 It can also be run as a standalone CLI::
@@ -46,7 +47,7 @@ from scipy.stats import spearmanr
 
 from shapiq import ExactComputer
 from shapiq.approximator import PermutationSamplingSV, SVARM, UnbiasedKernelSHAP
-from shapiq.approximator.regression.polyshap import PolySHAPKAdd, PolySHAPPartial
+from shapiq.approximator import PolySHAP
 
 # --------------------------------------------------------------------------- #
 # Configuration
@@ -71,22 +72,13 @@ class GameSpec:
 
 
 GAME_SPECS: dict[str, GameSpec] = {
-    "ViT9": GameSpec(
-        "ViT9", 9, "image", "ImageClassifier_Game/9", "model_name=vit_9_patches_{i}.npz"
-    ),
+    "ViT9": GameSpec("ViT9", 9, "image", "ImageClassifier_Game/9", "model_name=vit_9_patches_{i}.npz"),
     "ResNet18": GameSpec(
-        "ResNet18",
-        14,
-        "image",
-        "ImageClassifier_Game/14",
+        "ResNet18", 14, "image", "ImageClassifier_Game/14",
         "model_name=resnet_18_n_superpixel_resnet=14_{i}.npz",
     ),
-    "ViT16": GameSpec(
-        "ViT16", 16, "image", "ImageClassifier_Game/16", "model_name=vit_16_patches_{i}.npz"
-    ),
-    "DistilBERT": GameSpec(
-        "DistilBERT", 14, "language", "SentimentAnalysis_Game/14", "mask_strategy=mask_{i}.npz"
-    ),
+    "ViT16": GameSpec("ViT16", 16, "image", "ImageClassifier_Game/16", "model_name=vit_16_patches_{i}.npz"),
+    "DistilBERT": GameSpec("DistilBERT", 14, "language", "SentimentAnalysis_Game/14", "mask_strategy=mask_{i}.npz"),
 }
 
 # Method groups (paper terminology).
@@ -103,37 +95,25 @@ BUDGET_GRID_VERSION = 2
 # Colours sampled directly from the paper's Figure-2 legend (teal + Material
 # "Deep Orange" ramp) so our plots are visually comparable to the published ones.
 PAPER_COLORS: dict[str, str] = {
-    "1-PolySHAP": "#009587",  # teal  (= KernelSHAP)
-    "2-PolySHAP": "#ffb64d",  # amber
-    "3-PolySHAP": "#e64918",  # deep orange
-    "4-PolySHAP": "#bf360b",  # dark red
+    "1-PolySHAP": "#009587",       # teal  (= KernelSHAP)
+    "2-PolySHAP": "#ffb64d",       # amber
+    "3-PolySHAP": "#e64918",       # deep orange
+    "4-PolySHAP": "#bf360b",       # dark red
     "2-PolySHAP(50%)": "#ffdfb1",  # cream
     "3-PolySHAP(50%)": "#ff5621",  # orange-red
-    "PolySHAP(log)": "#6d4c41",  # brown (not a paper colour; ours only)
-    "Permutation": "#3949ab",  # indigo (baseline; not a paper colour)
-    "SVARM": "#7e57c2",  # purple (baseline)
-    "MSR": "#00838f",  # cyan   (baseline)
+    "PolySHAP(log)": "#6d4c41",    # brown (not a paper colour; ours only)
+    "Permutation": "#3949ab",      # indigo (baseline; not a paper colour)
+    "SVARM": "#7e57c2",            # purple (baseline)
+    "MSR": "#00838f",              # cyan   (baseline)
 }
 
 # Per-game axis windows matching the paper's Figure-2/3 panels: linear budget
 # axis, log MSE axis, identical limits and ticks so the curves line up.
 AXIS_SPECS: dict[str, dict] = {
-    "ResNet18": {
-        "xlim": (0, 17000),
-        "xticks": [0, 3000, 6000, 9000, 12000, 15000],
-        "ylim": (1e-9, 1e-1),
-    },
-    "ViT16": {
-        "xlim": (0, 21000),
-        "xticks": [0, 4000, 8000, 12000, 16000, 20000],
-        "ylim": (1e-7, 1e-1),
-    },
+    "ResNet18": {"xlim": (0, 17000), "xticks": [0, 3000, 6000, 9000, 12000, 15000], "ylim": (1e-9, 1e-1)},
+    "ViT16": {"xlim": (0, 21000), "xticks": [0, 4000, 8000, 12000, 16000, 20000], "ylim": (1e-7, 1e-1)},
     "ViT9": {"xlim": (0, 512), "xticks": [0, 128, 256, 384, 512], "ylim": (1e-7, 1e0)},
-    "DistilBERT": {
-        "xlim": (0, 16384),
-        "xticks": [0, 3000, 6000, 9000, 12000, 15000],
-        "ylim": (1e-9, 1e-1),
-    },
+    "DistilBERT": {"xlim": (0, 16384), "xticks": [0, 3000, 6000, 9000, 12000, 15000], "ylim": (1e-9, 1e-1)},
 }
 
 # --------------------------------------------------------------------------- #
@@ -185,62 +165,36 @@ def make_method(name: str, n: int, random_state: int, paired: bool):
     weights = np.ones(n + 1)  # order-1 leverage scores == uniform over subset sizes
 
     if name == "1-PolySHAP":
-        return PolySHAPKAdd(
-            n=n,
-            max_order=1,
-            sampling_weights=weights,
-            pairing_trick=paired,
-            random_state=random_state,
-        )
+        return PolySHAP(n=n, max_order=1, sampling_weights=weights,
+                        pairing_trick=paired, random_state=random_state)
     if name in ("2-PolySHAP", "3-PolySHAP", "4-PolySHAP"):
         k = int(name[0])
-        return PolySHAPKAdd(
-            n=n,
-            max_order=k,
-            sampling_weights=weights,
-            pairing_trick=paired,
-            random_state=random_state,
-        )
+        return PolySHAP(n=n, max_order=k, sampling_weights=weights,
+                        pairing_trick=paired, random_state=random_state)
     if name == "2-PolySHAP(50%)":
         # singletons + 50% of the pairwise interactions
         n_terms = int(1 + n + 0.5 * comb(n, 2))
         n_terms = min(n_terms, full_kadd_terms(n, 2))
-        return PolySHAPPartial(
-            n=n,
-            n_explanation_terms=n_terms,
-            sampling_weights=weights,
-            pairing_trick=paired,
-            random_state=random_state,
-        )
+        return PolySHAP(n=n, max_terms=n_terms, max_order=2, sampling_weights=weights,
+                        pairing_trick=paired, random_state=random_state)
     if name == "3-PolySHAP(50%)":
         n_terms = int(1 + n + comb(n, 2) + 0.5 * comb(n, 3))
         n_terms = min(n_terms, full_kadd_terms(n, 3))
-        return PolySHAPPartial(
-            n=n,
-            n_explanation_terms=n_terms,
-            sampling_weights=weights,
-            pairing_trick=paired,
-            random_state=random_state,
-        )
+        return PolySHAP(n=n, max_terms=n_terms, max_order=3, sampling_weights=weights,
+                        pairing_trick=paired, random_state=random_state)
     if name == "PolySHAP(log)":
         c3 = max(comb(n, 3), 2.0)
         n_terms = int(1 + n + comb(n, 2) + n * math.log(c3))
         n_terms = min(n_terms, full_kadd_terms(n, 3))
-        return PolySHAPPartial(
-            n=n,
-            n_explanation_terms=n_terms,
-            sampling_weights=weights,
-            pairing_trick=paired,
-            random_state=random_state,
-        )
+        return PolySHAP(n=n, max_terms=n_terms, max_order=3, sampling_weights=weights,
+                        pairing_trick=paired, random_state=random_state)
     if name == "Permutation":
         return PermutationSamplingSV(n=n, pairing_trick=paired, random_state=random_state)
     if name == "SVARM":
         return SVARM(n=n, pairing_trick=paired, sampling_weights=weights, random_state=random_state)
     if name == "MSR":
-        return UnbiasedKernelSHAP(
-            n=n, pairing_trick=paired, sampling_weights=weights, random_state=random_state
-        )
+        return UnbiasedKernelSHAP(n=n, pairing_trick=paired, sampling_weights=weights,
+                                  random_state=random_state)
     raise ValueError(f"unknown method {name!r}")
 
 
@@ -273,7 +227,7 @@ def compute_metrics(est: np.ndarray, exact: np.ndarray) -> dict[str, float]:
 
 
 def budget_grid(n: int) -> list[int]:
-    lo, hi = n + 1, min(2**n, MAX_BUDGET)
+    lo, hi = n + 1, min(2 ** n, MAX_BUDGET)
     grid = np.round(np.logspace(np.log10(lo), np.log10(hi), N_BUDGET_STEPS)).astype(int)
     grid = sorted(set(int(b) for b in grid))
     # Densify the final segment. The exact-recovery collapse happens late (just
@@ -288,14 +242,8 @@ def budget_grid(n: int) -> list[int]:
     return grid
 
 
-def run_sweep(
-    data_root: Path,
-    games: list[str],
-    instances: int,
-    methods: list[str],
-    sampling_modes: list[bool],
-    seed: int,
-) -> pd.DataFrame:
+def run_sweep(data_root: Path, games: list[str], instances: int, methods: list[str],
+              sampling_modes: list[bool], seed: int) -> pd.DataFrame:
     rows: list[dict] = []
     total = 0
     for gname in games:
@@ -321,29 +269,13 @@ def run_sweep(
                         try:
                             est_obj = make_method(mname, n, seed + inst, paired)
                         except Exception as exc:  # noqa: BLE001
-                            rows.append(
-                                _row(
-                                    spec,
-                                    inst,
-                                    paired,
-                                    budget,
-                                    mname,
-                                    status=f"ctor_error:{type(exc).__name__}",
-                                )
-                            )
+                            rows.append(_row(spec, inst, paired, budget, mname,
+                                             status=f"ctor_error:{type(exc).__name__}"))
                             continue
                         n_vars = getattr(est_obj, "n_variables", None)
                         if n_vars is not None and n_vars > budget:
-                            rows.append(
-                                _row(
-                                    spec,
-                                    inst,
-                                    paired,
-                                    budget,
-                                    mname,
-                                    status="skipped:budget<n_variables",
-                                )
-                            )
+                            rows.append(_row(spec, inst, paired, budget, mname,
+                                             status="skipped:budget<n_variables"))
                             continue
                         try:
                             with warnings.catch_warnings():
@@ -353,47 +285,19 @@ def run_sweep(
                                 runtime = time.perf_counter() - t0
                             est = np.asarray(iv.get_n_order_values(1), dtype=float)
                             metrics = compute_metrics(est, exact)
-                            rows.append(
-                                _row(
-                                    spec,
-                                    inst,
-                                    paired,
-                                    budget,
-                                    mname,
-                                    status="ok",
-                                    runtime=runtime,
-                                    **metrics,
-                                )
-                            )
+                            rows.append(_row(spec, inst, paired, budget, mname,
+                                             status="ok", runtime=runtime, **metrics))
                         except Exception as exc:  # noqa: BLE001
-                            rows.append(
-                                _row(
-                                    spec,
-                                    inst,
-                                    paired,
-                                    budget,
-                                    mname,
-                                    status=f"error:{type(exc).__name__}",
-                                )
-                            )
+                            rows.append(_row(spec, inst, paired, budget, mname,
+                                             status=f"error:{type(exc).__name__}"))
                     if done % 250 == 0 or done == total:
-                        print(
-                            f"  [{done:>6}/{total}] {gname} inst={inst} "
-                            f"paired={paired} budget={budget}",
-                            flush=True,
-                        )
+                        print(f"  [{done:>6}/{total}] {gname} inst={inst} "
+                              f"paired={paired} budget={budget}", flush=True)
     return pd.DataFrame(rows)
 
 
-def cached_run_sweep(
-    data_root,
-    games: list[str],
-    instances: int,
-    methods: list[str],
-    sampling_modes: list[bool],
-    seed: int,
-    cache_dir,
-) -> pd.DataFrame:
+def cached_run_sweep(data_root, games: list[str], instances: int, methods: list[str],
+                     sampling_modes: list[bool], seed: int, cache_dir) -> pd.DataFrame:
     """Run :func:`run_sweep`, caching the result CSV keyed by its parameters.
 
     The sweep (which includes the exact-Shapley ground truth) is the only
@@ -407,13 +311,9 @@ def cached_run_sweep(
     cache_dir = Path(cache_dir)
     cache_dir.mkdir(parents=True, exist_ok=True)
     key = {
-        "games": sorted(games),
-        "instances": instances,
-        "methods": sorted(methods),
+        "games": sorted(games), "instances": instances, "methods": sorted(methods),
         "sampling": sorted("paired" if s else "standard" for s in sampling_modes),
-        "seed": seed,
-        "budget_steps": N_BUDGET_STEPS,
-        "max_budget": MAX_BUDGET,
+        "seed": seed, "budget_steps": N_BUDGET_STEPS, "max_budget": MAX_BUDGET,
         "grid_version": BUDGET_GRID_VERSION,
     }
     keystr = json.dumps(key, sort_keys=True)
@@ -429,26 +329,12 @@ def cached_run_sweep(
     return df
 
 
-def _row(
-    spec: GameSpec,
-    inst: int,
-    paired: bool,
-    budget: int,
-    method: str,
-    status: str,
-    runtime: float = float("nan"),
-    **metrics,
-) -> dict:
+def _row(spec: GameSpec, inst: int, paired: bool, budget: int, method: str,
+         status: str, runtime: float = float("nan"), **metrics) -> dict:
     row = {
-        "game": spec.name,
-        "d": spec.d,
-        "domain": spec.domain,
-        "instance": inst,
-        "sampling": "paired" if paired else "standard",
-        "budget": budget,
-        "method": method,
-        "status": status,
-        "runtime": runtime,
+        "game": spec.name, "d": spec.d, "domain": spec.domain,
+        "instance": inst, "sampling": "paired" if paired else "standard",
+        "budget": budget, "method": method, "status": status, "runtime": runtime,
     }
     for key in ("MSE", "MAE", "Precision@5", "Spearman"):
         row[key] = metrics.get(key, float("nan"))
@@ -492,14 +378,8 @@ def plot_higher_order(df: pd.DataFrame, outdir: Path, metric: str = "MSE") -> No
             if s.empty:
                 continue
             ax.plot(s["budget"], s["mean"], marker="o", ms=3, color=COLORS[m], label=m)
-            ax.fill_between(
-                s["budget"],
-                s["mean"] - s["sem"],
-                s["mean"] + s["sem"],
-                color=COLORS[m],
-                alpha=0.18,
-                lw=0,
-            )
+            ax.fill_between(s["budget"], s["mean"] - s["sem"], s["mean"] + s["sem"],
+                            color=COLORS[m], alpha=0.18, lw=0)
         ax.set_xscale("log")
         ax.set_yscale("log")
         ax.set_title(f"{gname} (d={GAME_SPECS[gname].d})")
@@ -534,15 +414,8 @@ def plot_paired_vs_standard(df: pd.DataFrame, outdir: Path, metric: str = "MSE")
                 if s.empty:
                     continue
                 ls, mk = styles[samp]
-                ax.plot(
-                    s["budget"],
-                    s["mean"],
-                    ls=ls,
-                    marker=mk,
-                    ms=3,
-                    color=COLORS[m],
-                    label=f"{m} ({samp})",
-                )
+                ax.plot(s["budget"], s["mean"], ls=ls, marker=mk, ms=3, color=COLORS[m],
+                        label=f"{m} ({samp})")
         ax.set_xscale("log")
         ax.set_yscale("log")
         ax.set_title(f"{gname} (d={GAME_SPECS[gname].d})")
@@ -626,9 +499,8 @@ def main() -> int:
     parser.add_argument("--instances", type=int, default=15)
     parser.add_argument("--seed", type=int, default=40)
     parser.add_argument("--standard-only", action="store_true")
-    parser.add_argument(
-        "--quick", action="store_true", help="3 instances, higher-order methods only"
-    )
+    parser.add_argument("--quick", action="store_true",
+                        help="3 instances, higher-order methods only")
     parser.add_argument("--output-root", type=Path, default=Path(__file__).parent / "results")
     args = parser.parse_args()
 
@@ -650,9 +522,7 @@ def main() -> int:
 
     print(f"Games:    {games}")
     print(f"Methods:  {methods}")
-    print(
-        f"Instances:{instances}  sampling={'standard+paired' if len(sampling_modes) == 2 else 'standard'}"
-    )
+    print(f"Instances:{instances}  sampling={'standard+paired' if len(sampling_modes)==2 else 'standard'}")
     print(f"Output:   {outdir}\n")
 
     df = run_sweep(args.data_root, games, instances, methods, sampling_modes, args.seed)

@@ -7,7 +7,7 @@ from .kernelshap import KernelSHAP
 from .kernelshapiq import InconsistentKernelSHAPIQ, KernelSHAPIQ
 from .leverageshap import LeverageSHAP
 from .oddshap import OddSHAP
-from .polyshap import PolySHAPKAdd, PolySHAPPartial, PolySHAPPrior
+from .polyshap import PolySHAP
 
 __all__ = [
     "kADDSHAP",
@@ -18,8 +18,6 @@ __all__ = [
     "LeverageSHAP",
     "Regression",
     "RegressionFBII",
-    "PolySHAPKAdd",
-    "PolySHAPPartial",
-    "PolySHAPPrior",
+    "PolySHAP",
     "OddSHAP",
 ]

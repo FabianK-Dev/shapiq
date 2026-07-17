@@ -53,7 +53,7 @@ Möbius (interaction) representation therefore has **no terms above
 `max_interaction_size`** — that value *is* the game's **true interaction order
 `k`**. Ground-truth Shapley values come from `shapiq.ExactComputer`.
 
-**What we show.** With `k` fixed, we sweep `PolySHAPKAdd(max_order=…)` at
+**What we show.** With `k` fixed, we sweep `PolySHAP(max_order=…)` at
 `k-1` (below), `k` (match) and `k+1` (overshoot), plus `KernelSHAP` (= order 1)
 as a blue baseline:
 
@@ -96,7 +96,7 @@ import matplotlib.pyplot as plt
 import shapiq
 from shapiq import ExactComputer
 from shapiq.approximator import KernelSHAP
-from shapiq.approximator.regression.polyshap import PolySHAPKAdd
+from shapiq.approximator import PolySHAP
 from shapiq_games.synthetic import SOUM
 
 HERE = Path.cwd()
@@ -174,7 +174,7 @@ md(r"""
 ## 3 · Estimators, roles, and the (dense) budget grid
 
 The three PolySHAP roles derive from the true order `k`: `max_order = k-1, k,
-k+1`. `PolySHAPKAdd(max_order=m)` needs at least `n_variables = 1 + C(n,1) + … +
+k+1`. `PolySHAP(max_order=m)` needs at least `n_variables = 1 + C(n,1) + … +
 C(n,m)` evaluations, so higher orders only start further to the right.
 
 The budget grid is **log-spaced and additionally densified near `2**n`** so the
@@ -190,7 +190,7 @@ def make_method(role: str, spec: GameSpec, random_state: int):
     weights = np.ones(spec.n + 1)   # uniform over subset sizes (order-1 leverage)
     if role == "KernelSHAP":
         return KernelSHAP(n=spec.n, sampling_weights=weights, random_state=random_state)
-    return PolySHAPKAdd(n=spec.n, max_order=roles_for(spec)[role],
+    return PolySHAP(n=spec.n, max_order=roles_for(spec)[role],
                         sampling_weights=weights, random_state=random_state)
 
 def budget_grid(n: int) -> list[int]:

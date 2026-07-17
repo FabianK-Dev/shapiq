@@ -3,7 +3,7 @@
 A self-contained showcase notebook (no paper assets, no precomputed-game data,
 no reference implementation). It constructs three controlled *k-additive* games
 with a known intrinsic interaction order ``k = 3`` and shows how the integrated
-``PolySHAPKAdd`` approximator behaves as its ``max_order`` is swept across that
+``PolySHAP`` approximator behaves as its ``max_order`` is swept across that
 threshold, with `shapiq`'s own ``KernelSHAP`` drawn as a blue baseline.
 
 Expected behaviour (this is exactly what the notebook visualises):
@@ -44,14 +44,14 @@ The earlier notebook (`polyshap_reproduction.ipynb`) reproduced the paper on
 higher orders keep helping. This notebook asks a sharper, controlled question:
 
 > If a game's interactions genuinely stop at order **k**, what is the *right*
-> `max_order` to give `PolySHAPKAdd` — and what happens on either side of it?
+> `max_order` to give `PolySHAP` — and what happens on either side of it?
 
 To answer it cleanly we build games whose interaction order is **exactly known**:
 synthetic **3-additive** games (`k = 3`). Their Möbius (interaction) representation
 has non-zero terms only up to triples, so a degree-3 polynomial fit can represent
 them *perfectly* while lower degrees cannot, and higher degrees add nothing.
 
-Sweeping `PolySHAPKAdd(max_order=...)` against this known `k = 3` should show:
+Sweeping `PolySHAP(max_order=...)` against this known `k = 3` should show:
 
 | `max_order` vs `k` | expected behaviour |
 |---|---|
@@ -87,7 +87,7 @@ import matplotlib.pyplot as plt
 import shapiq
 from shapiq import ExactComputer
 from shapiq.approximator import KernelSHAP
-from shapiq.approximator.regression.polyshap import PolySHAPKAdd
+from shapiq.approximator import PolySHAP
 
 HERE = Path.cwd()
 NB_DIR = next((c for c in (HERE, HERE / "polyshap", HERE / "notebooks" / "polyshap")
@@ -199,7 +199,7 @@ def exact_shapley(game, n: int) -> np.ndarray:
 md(r"""
 ## 3 · Estimators and the budget sweep
 
-`PolySHAPKAdd(max_order=k)` needs at least `n_variables` coalition evaluations
+`PolySHAP(max_order=k)` needs at least `n_variables` coalition evaluations
 (one per frontier term: `1 + C(n,1) + … + C(n,k)`). Below that budget the fit is
 under-determined, so we skip it — and this is precisely the cost of going to a
 higher order: a degree-4 frontier only becomes affordable far to the right.
@@ -224,7 +224,7 @@ def make_method(name: str, n: int, random_state: int):
     weights = np.ones(n + 1)  # uniform over subset sizes (order-1 leverage scores)
     if name == "KernelSHAP":
         return KernelSHAP(n=n, sampling_weights=weights, random_state=random_state)
-    return PolySHAPKAdd(n=n, max_order=POLY_ORDER[name], sampling_weights=weights,
+    return PolySHAP(n=n, max_order=POLY_ORDER[name], sampling_weights=weights,
                         random_state=random_state)
 
 def n_variables(name: str, n: int) -> int:
@@ -300,7 +300,7 @@ axes[0][0].set_ylabel("MSE vs. exact Shapley (± SEM)")
 handles, labels = axes[0][0].get_legend_handles_labels()
 fig.legend(handles, labels, loc="upper center", ncol=len(METHODS),
            bbox_to_anchor=(0.5, 1.08), frameon=False)
-fig.suptitle("PolySHAPKAdd: accuracy vs. budget as max_order crosses the true order k=3",
+fig.suptitle("PolySHAP: accuracy vs. budget as max_order crosses the true order k=3",
              y=1.00, fontsize=12)
 fig.tight_layout()
 save_fig(fig, "maxorder_vs_k.png")
@@ -352,7 +352,7 @@ table_at_budget()
 md(r"""
 ## Conclusion
 
-Across three controlled 3-additive games, the integrated `PolySHAPKAdd` behaves
+Across three controlled 3-additive games, the integrated `PolySHAP` behaves
 exactly as the interaction order predicts:
 
 * `max_order < k` **under-fits** — degree 1 *is* KernelSHAP, degree 2 improves on it.
