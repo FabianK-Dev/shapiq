@@ -1,0 +1,47 @@
+% ==================================================
+% Title page — the chair's layout, reduced to a report
+%
+% Taken from the template's content/titlepages.tex: same logos, same fonts, same
+% colour. Dropped: the separate cover page, and the reviewer/supervisor block, which a
+% report does not have.
+% ==================================================
+\begin{titlepage}
+    \pdfbookmark[0]{Titlepage}{Titlepage}
+    \tgherosfont
+    \begin{figure}[t]
+        \begin{minipage}[t]{8.5cm}
+            \includegraphics[height=1.8cm,width=3.6cm]{gfx/lmulogo.pdf}\\
+            \textsf{\small{Department of Mathematics, \\ Informatics and Statistics \\
+                Institute of Informatics}}
+        \end{minipage}
+        \hfill
+        \begin{minipage}[t]{4.7cm}
+            \includegraphics[height=1.8cm,width=4.7cm]{gfx/aiml-logo-solid-black.pdf}\\
+            \textsf{\hspace*{0.1cm}\small{Artificial Intelligence and \\
+                \hspace*{0.1cm}Machine Learning}}
+        \end{minipage}
+    \end{figure}
+
+    \centering
+    \vfill
+    {\large \reportSubject} \\[5mm]
+    {\LARGE \color{ctcolortitle}\textbf{\reportTitle}} \\[6mm]
+    {\large \reportSubtitle} \\[10mm]
+    {\Large \reportAuthors} \\
+    \vfill
+
+    % Names only: the logos above already give the department and the group, so repeating
+    % the affiliation here says nothing and forces an ugly hyphenation.
+    \begin{minipage}[t]{.27\textwidth}
+        \raggedleft
+        \textit{Supervisors}
+    \end{minipage}
+    \hspace*{15pt}
+    \begin{minipage}[t]{.65\textwidth}
+        {\Large \reportSupervisors}
+    \end{minipage}
+
+    \vfill
+    {\large \reportDate}
+    \vspace*{10mm}
+\end{titlepage}

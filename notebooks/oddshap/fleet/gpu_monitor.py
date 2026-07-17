@@ -34,14 +34,17 @@ def render(snap: dict, cost_per_gpu_h: float | None) -> str:
     L = []
     el = snap["elapsed_s"]
     L.append("═" * 66)
-    L.append(f" GPU reproduction fleet · {datetime.now().strftime('%H:%M:%S')} · "
-             f"elapsed {fmt_dur(el)}")
+    L.append(
+        f" GPU reproduction fleet · {datetime.now().strftime('%H:%M:%S')} · elapsed {fmt_dur(el)}"
+    )
     L.append("═" * 66)
 
     # ---- ① global progress ----
     done, tot = snap["done"], snap["jobs_total"]
-    L.append(f"PROGRESS  {done}/{tot}  {bar(snap['pct'])} {snap['pct']:5.1f}%   "
-             f"failed={snap['failed_final']}")
+    L.append(
+        f"PROGRESS  {done}/{tot}  {bar(snap['pct'])} {snap['pct']:5.1f}%   "
+        f"failed={snap['failed_final']}"
+    )
     cells = snap["done_by_cell"]
     per_cell_total = tot // max(1, len(cells)) if cells else tot
     cellline = "   ".join(f"{k}:{v}" for k, v in sorted(cells.items()))
@@ -50,9 +53,13 @@ def render(snap: dict, cost_per_gpu_h: float | None) -> str:
 
     # ---- ② detailed time expectations ----
     L.append("─" * 66)
-    L.append("TIME  throughput %.1f inst/min · median/instance: %s" % (
-        snap["throughput_per_min"],
-        "  ".join(f"{vf}={fmt_dur(s)}" for vf, s in snap["vf_median_s"].items())))
+    L.append(
+        "TIME  throughput %.1f inst/min · median/instance: %s"
+        % (
+            snap["throughput_per_min"],
+            "  ".join(f"{vf}={fmt_dur(s)}" for vf, s in snap["vf_median_s"].items()),
+        )
+    )
     eta_s = snap["eta_s"]
     finish = datetime.now() + timedelta(seconds=eta_s)
     L.append(f"      remaining ≈ {fmt_dur(eta_s)}   →  finish ~ {finish.strftime('%H:%M')}")
@@ -61,17 +68,25 @@ def render(snap: dict, cost_per_gpu_h: float | None) -> str:
         L.append(f"        {vf:<11} left ≈ {fmt_dur(s):<7} → {f2.strftime('%H:%M')}")
     if cost_per_gpu_h:
         gh = snap["gpu_hours"]
-        proj_gh = gh + eta_s * max(1, len([m for m in snap['machines'] if m['status'] != 'offline'])) / 3600
-        L.append(f"COST  spent {gh:.2f} GPU-h ≈ ¥{gh*cost_per_gpu_h:.1f}  ·  "
-                 f"projected ~¥{proj_gh*cost_per_gpu_h:.1f}")
+        proj_gh = (
+            gh
+            + eta_s * max(1, len([m for m in snap["machines"] if m["status"] != "offline"])) / 3600
+        )
+        L.append(
+            f"COST  spent {gh:.2f} GPU-h ≈ ¥{gh * cost_per_gpu_h:.1f}  ·  "
+            f"projected ~¥{proj_gh * cost_per_gpu_h:.1f}"
+        )
 
     # ---- ③ per-machine live (each machine runs `slots` concurrent instances) ----
     L.append("─" * 66)
     L.append(f"{'MACHINE':<20}{'STATE':<7}{'GPU util/mem/temp':<20}{'active jobs (elapsed)':<26}")
     for m in snap["machines"]:
         stale = "⚠" if m["last_beat"] and now - m["last_beat"] > 180 else " "
-        gpu = f"{m['gpu_util']:.0f}% {m['gpu_mem_used']:.0f}/{m['gpu_mem_total']:.0f}M {m['gpu_temp']:.0f}C" \
-            if m["gpu_mem_total"] else "-"
+        gpu = (
+            f"{m['gpu_util']:.0f}% {m['gpu_mem_used']:.0f}/{m['gpu_mem_total']:.0f}M {m['gpu_temp']:.0f}C"
+            if m["gpu_mem_total"]
+            else "-"
+        )
         active = m.get("active", {})
         jobs = []
         for slot in sorted(active, key=lambda s: int(s)):
@@ -79,8 +94,10 @@ def render(snap: dict, cost_per_gpu_h: float | None) -> str:
             on = now - info["started"] if info.get("started") else 0
             jobs.append(f"{info['job'].split('err')[0][:16]}({fmt_dur(on)})")
         jobstr = " ".join(jobs)[:26] if jobs else "-"
-        L.append(f"{stale}{m['name'][:19]:<19}{m['status']:<7}{gpu:<20}{jobstr:<26}"
-                 f" ok={m['done']} f={m['failed']}")
+        L.append(
+            f"{stale}{m['name'][:19]:<19}{m['status']:<7}{gpu:<20}{jobstr:<26}"
+            f" ok={m['done']} f={m['failed']}"
+        )
 
     L.append("═" * 66)
     return "\n".join(L)
@@ -106,7 +123,7 @@ def main():
                 snap = json.loads(p.read_text())
                 out = render(snap, a.cost)
                 if not a.once:
-                    print("\033[2J\033[H", end="")   # clear + home
+                    print("\033[2J\033[H", end="")  # clear + home
                 print(out)
             except (json.JSONDecodeError, KeyError):
                 pass

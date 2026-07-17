@@ -18,12 +18,25 @@ import numpy as np
 _NB_DIR = Path(__file__).resolve().parent.parent
 
 from .constants import (
-    ESTIMATORS, ETA_BUDGETS, ETAS, GPU_VF_NAMES, PAPER_D, TABULAR_VF_NAMES,
-    VARIANT_LABEL, VARIANT_SHORT,
+    ESTIMATORS,
+    ETA_BUDGETS,
+    ETAS,
+    GPU_VF_NAMES,
+    PAPER_D,
+    TABULAR_VF_NAMES,
+    VARIANT_LABEL,
+    VARIANT_SHORT,
 )
 from .style import (  # noqa: F401  (re-exported for the notebooks)
-    OKABE_ITO, ODDSHAP_COLOR, PAPER_COLOR, PAPER_VF_ALIAS, estimator_style, paper_style,
-    paper_vf_style, variant_style, vf_style,
+    OKABE_ITO,
+    ODDSHAP_COLOR,
+    PAPER_COLOR,
+    PAPER_VF_ALIAS,
+    estimator_style,
+    paper_style,
+    paper_vf_style,
+    variant_style,
+    vf_style,
 )
 
 
@@ -76,16 +89,27 @@ def load_paper_fig4(vfs=None):
             if vfs is not None and vf not in vfs:
                 continue
             out.setdefault(vf, []).append(
-                (int(r["position"]), int(r["n_interactions"]),
-                 float(r["median"]), float(r["q1"]), float(r["q3"])))
+                (
+                    int(r["position"]),
+                    int(r["n_interactions"]),
+                    float(r["median"]),
+                    float(r["q1"]),
+                    float(r["q3"]),
+                )
+            )
     return {vf: sorted(v) for vf, v in out.items()} or None
 
 
 # short display names matching the paper's own figure legends
 PAPER_VF_DISPLAY = {
-    "distilbert": "DistilBERT", "vit16": "ViT16", "cancer": "Cancer",
-    "corrgroups60": "CG60", "independentlinear60": "IL60", "nhanes": "NHANES",
-    "crime": "Crime", "realestate": "Estate",
+    "distilbert": "DistilBERT",
+    "vit16": "ViT16",
+    "cancer": "Cancer",
+    "corrgroups60": "CG60",
+    "independentlinear60": "IL60",
+    "nhanes": "NHANES",
+    "crime": "Crime",
+    "realestate": "Estate",
 }
 
 
@@ -130,7 +154,7 @@ def load_paper_oddshap_band(vf: str):
             if r["value_function"] != pvf or not r.get("q1") or not r.get("q3"):
                 continue
             b, m, q1, q3 = float(r["budget"]), float(r["median"]), float(r["q1"]), float(r["q3"])
-            if q1 <= m <= q3:            # drop digitisation points where the band crossed
+            if q1 <= m <= q3:  # drop digitisation points where the band crossed
                 out.append((b, m, q1, q3))
     return sorted(out) or None
 
@@ -141,38 +165,45 @@ def experiment_setup(variant: str, *, instances: int = 30) -> str:
     from the shared constants, so it can never drift from what actually ran."""
     try:
         import shapiq
+
         shapiq_v = getattr(shapiq, "__version__", "?")
     except Exception:  # noqa: BLE001
         shapiq_v = "?"
     tab = ", ".join(f"{v} (d={PAPER_D.get(v, '?')})" for v in TABULAR_VF_NAMES)
     gpu = ", ".join(f"{v} (d={PAPER_D.get(v, '?')})" for v in GPU_VF_NAMES)
-    return "\n".join([
-        "=" * 24 + "  EXPERIMENTAL SETUP  " + "=" * 24,
-        f"  OddSHAP variant     : {VARIANT_LABEL.get(variant, variant)}",
-        f"  Instances / VF      : N = {instances}   (every median / IQR band / mean / std is over these {instances})",
-        f"  Tabular VFs ({len(TABULAR_VF_NAMES)})     : {tab}",
-        f"  Deep-learning VFs ({len(GPU_VF_NAMES)}) : {gpu}",
-        f"  Estimators ({len(ESTIMATORS)})       : {', '.join(ESTIMATORS)}",
-        "  Value function      : XGBoost + interventional imputation, 50 background samples [tabular];",
-        "                        ViT16 / DistilBERT class probability [deep-learning]",
-        "  Ground truth        : exact interventional TreeSHAP [tabular];  exact 2^d enumeration [deep-learning]",
-        "  Metric              : single-feature Shapley MSE vs ground truth, aggregated over the N instances",
-        "  Table 1 / 3 budget  : m = max(d+1, 100*d)",
-        "  Figure 2 budgets    : log-spaced grid, m = d+1 .. min(2^d, 20000)",
-        f"  Figure 4 / 11       : fixed m in {ETA_BUDGETS} samples,  eta in {ETAS}  (# odd interactions = ceil(m/eta));",
-        "                        y = MSE ratio vs the interaction-free baseline (LeverageSHAP)",
-        "  Hardware            : LMU CIP cluster - CPU nodes (tabular) / NVIDIA GPU (deep-learning VFs)",
-        f"  Software            : shapiq {shapiq_v}, python {platform.python_version()}, {platform.system()}",
-        "=" * 70,
-    ])
+    return "\n".join(
+        [
+            "=" * 24 + "  EXPERIMENTAL SETUP  " + "=" * 24,
+            f"  OddSHAP variant     : {VARIANT_LABEL.get(variant, variant)}",
+            f"  Instances / VF      : N = {instances}   (every median / IQR band / mean / std is over these {instances})",
+            f"  Tabular VFs ({len(TABULAR_VF_NAMES)})     : {tab}",
+            f"  Deep-learning VFs ({len(GPU_VF_NAMES)}) : {gpu}",
+            f"  Estimators ({len(ESTIMATORS)})       : {', '.join(ESTIMATORS)}",
+            "  Value function      : XGBoost + interventional imputation, 50 background samples [tabular];",
+            "                        ViT16 / DistilBERT class probability [deep-learning]",
+            "  Ground truth        : exact interventional TreeSHAP [tabular];  exact 2^d enumeration [deep-learning]",
+            "  Metric              : single-feature Shapley MSE vs ground truth, aggregated over the N instances",
+            "  Table 1 / 3 budget  : m = max(d+1, 100*d)",
+            "  Figure 2 budgets    : log-spaced grid, m = d+1 .. min(2^d, 20000)",
+            f"  Figure 4 / 11       : fixed m in {ETA_BUDGETS} samples,  eta in {ETAS}  (# odd interactions = ceil(m/eta));",
+            "                        y = MSE ratio vs the interaction-free baseline (LeverageSHAP)",
+            "  Hardware            : LMU CIP cluster - CPU nodes (tabular) / NVIDIA GPU (deep-learning VFs)",
+            f"  Software            : shapiq {shapiq_v}, python {platform.python_version()}, {platform.system()}",
+            "=" * 70,
+        ]
+    )
 
 
-def environment_banner(variant: str, *, gt: str, vf_family: str = "XGBoost + interventional (50 bg)") -> str:
+def environment_banner(
+    variant: str, *, gt: str, vf_family: str = "XGBoost + interventional (50 bg)"
+) -> str:
     """One-line experimental-environment string embedded under every figure group."""
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    return (f"variant: {VARIANT_LABEL.get(variant, variant)}  |  value function: {vf_family}  "
-            f"|  ground truth: {gt}  |  N=30 instances  |  metric: Shapley MSE (median + IQR)  "
-            f"|  python {platform.python_version()} / {platform.system()}  |  {stamp}")
+    return (
+        f"variant: {VARIANT_LABEL.get(variant, variant)}  |  value function: {vf_family}  "
+        f"|  ground truth: {gt}  |  N=30 instances  |  metric: Shapley MSE (median + IQR)  "
+        f"|  python {platform.python_version()} / {platform.system()}  |  {stamp}"
+    )
 
 
 def fig_title(base: str, vf: str, variant: str, extra: str = "") -> str:
@@ -200,8 +231,13 @@ def load_table1(vf: str, variant: str):
         return None
     out = {}
     for r in read(name):
-        out[r["estimator"]] = (float(r["median"]), float(r["q1"]), float(r["q3"]),
-                               float(r["mean"]), float(r["std"]))
+        out[r["estimator"]] = (
+            float(r["median"]),
+            float(r["q1"]),
+            float(r["q3"]),
+            float(r["mean"]),
+            float(r["std"]),
+        )
     return out
 
 
@@ -239,7 +275,8 @@ def load_eta(vf: str, variant: str, budget: int = 10_000):
     pts = []
     for r in read(name):
         if int(r["budget"]) == budget and r["eta"] != "base":
-            ni = int(r["n_interactions"]); ratio = float(r["ratio_vs_base"])
+            ni = int(r["n_interactions"])
+            ratio = float(r["ratio_vs_base"])
             q1 = float(r["ratio_q1"]) if r.get("ratio_q1") else ratio
             q3 = float(r["ratio_q3"]) if r.get("ratio_q3") else ratio
             pts.append((ni, ratio, q1, q3))
@@ -300,9 +337,12 @@ def table3_dataframe(vfs, variant: str, statistics=("median", "mean", "std", "q1
         import pandas as pd
 
         rows = [(e, s) for e in order for s in statistics]
-        df = pd.DataFrame(index=pd.MultiIndex.from_tuples(rows, names=["estimator", "statistic"]),
-                          columns=cols, dtype=object)
-        for (e, s) in rows:
+        df = pd.DataFrame(
+            index=pd.MultiIndex.from_tuples(rows, names=["estimator", "statistic"]),
+            columns=cols,
+            dtype=object,
+        )
+        for e, s in rows:
             for col, v in data.get((e, s), {}).items():
                 df.loc[(e, s), col] = f"{v:.2e}"
         return df.fillna("")

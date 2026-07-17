@@ -1,0 +1,46 @@
+% ==================================================
+% 1. Abstract and introduction
+%
+% Budget: three quarters of a page, abstract included. It is an entry point, not a summary
+% of the report -- every claim here is made properly in the chapter it belongs to. No
+% numbered subsections: cleanthesis headings are tall and this is too short to need them.
+% ==================================================
+\chapter{Abstract and Introduction}
+\label{sec:introduction}
+
+% The chapter title already says "Abstract", so a heading here would only repeat it. Set the
+% abstract apart typographically instead; the first \paragraph below marks where it ends.
+\begin{quotation}
+\noindent
+We add three recent Shapley-value approximators to \shapiq{} --- \leverageshap{}
+\citep{Witter.2025a}, \polyshap{} \citep{Fumagalli.2026a} and \oddshap{}
+\citep{Fumagalli.2026} --- reproduce each paper from the resulting implementation, and
+benchmark all three against every approximator \shapiq{} already provides. Each paper's
+headline claim holds, and holds on a value function none of the three papers uses. No single
+ordering of the methods exists: averaged over all games \leverageshap{} ranks best, but over
+the games above sixty players \oddshap{} leads by a wide margin. Which number is the answer
+depends on the dimension a reader cares about.
+\end{quotation}
+
+\paragraph{What we did.}
+The Shapley value averages a feature's marginal contribution over all $2^d$ coalitions, so
+every practical use of it rests on an approximator. We implemented three recent ones in
+\shapiq{} \citep{Muschalik.2024b} and submitted them upstream: \oddshap{} is merged
+(PR~\#522, follow-up PR~\#560); \leverageshap{} (PR~\#524) and \polyshap{} (PR~\#559) are
+open. Each has a reproduction of its own paper that re-renders offline from committed result
+tables, without a GPU. Chapter~\ref{sec:benchmark} then compares all three against the
+existing \shapiq{} approximators over eleven games, twelve budgets and ten explained
+predictions --- 19{,}800 cells. Two \shapiq{} defects surfaced on the way and are fixed here:
+the ViT value function left its normalisation parameters on the CPU and so could not run on a
+GPU at all, and the placeholders for the optional extras were abstract, reporting a missing
+dependency as a broken approximator.
+
+\paragraph{Two questions, two setups.}
+The report answers two questions that need different settings, and conflating them makes the
+chapters look contradictory. A \emph{reproduction} asks whether a paper's claim survives
+re-implementation, so it must use that paper's value function --- and the three papers do not
+share one. The \emph{benchmark} asks how the methods compare with each other, so it must use
+one value function for all of them, which then belongs to no paper. Absolute errors are
+therefore comparable \emph{within} a chapter and meaningless \emph{across} chapters. That the
+claims survive a value function none of the papers chose is the stronger result, and it is
+only visible because the two settings are kept apart.

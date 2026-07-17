@@ -1,0 +1,117 @@
+% **************************************************
+% Setup — adapted from the chair's my-thesis-setup.tex
+%
+% Kept: the chair's cleanthesis look and its package wiring. cleanthesis loads biblatex,
+% hyperref, csquotes and listings itself, so they are configured through its options and
+% \hypersetup rather than loaded again here.
+%
+% Dropped: everything only a thesis needs — reviewer/supervisor fields, title-page
+% metadata, declaration, colophon.
+% **************************************************
+
+\PassOptionsToPackage{utf8}{inputenc}
+\usepackage{inputenc}
+
+% --------------------------
+% Report metadata — edit these
+% --------------------------
+\newcommand{\reportTitle}{New Shapley Value Approximators}
+\newcommand{\reportSubtitle}{Implementing LeverageSHAP, PolySHAP and OddSHAP in
+    \texttt{shapiq}}
+\newcommand{\reportSubject}{Praktikum Report}
+\newcommand{\reportAuthors}{Group G \quad---\quad TODO: names}
+\newcommand{\reportSupervisors}{TODO: supervisor names}
+\newcommand{\reportDate}{\today}
+
+\usepackage[english]{babel}
+
+% --------------------------
+% The chair's look. cleanthesis wires up biblatex, hyperref, csquotes and listings.
+% --------------------------
+\PassOptionsToPackage{%
+    figuresep=colon,%
+    hangfigurecaption=false,%
+    hangsection=true,%
+    hangsubsection=true,%
+    sansserif=false,%
+    configurelistings=true,%
+    colorize=full,%
+    colortheme=lmuaiml,%
+    configurebiblatex=true,%
+    bibsys=biber,%
+    bibfile=references,%
+    bibstyle=numeric-comp,%
+    bibsorting=nyt,%
+}{cleanthesis}
+\usepackage{cleanthesis}
+\ExecuteBibliographyOptions{backref=false, maxcitenames=2, maxbibnames=99, giveninits=true}
+
+% cleanthesis sets BCOR=25mm, a binding correction for a printed and bound thesis. This
+% report is read on screen and single-sided, so that 25mm is not swallowed by a binding --
+% it just pushes every page to the right. Drop it and recompute the type area.
+% DIV=12 is the thesis type area: a narrow block with wide margins to rest the eye over 60
+% pages. A report is read in one sitting, so widen it. BCOR=25mm is a binding correction for
+% a bound thesis; nothing binds this, and the 25mm only pushes every page right.
+\KOMAoptions{BCOR=0mm, DIV=14}
+\recalctypearea
+
+% cleanthesis leaves 2.5 blank lines under every chapter heading and generous room around
+% section headings. That is thesis pacing. Tighten it: five chapters do not need a page of
+% air between them and their first sentence.
+\renewcommand*\chapterheadendvskip{\vspace*{1.1\baselineskip}}
+\RedeclareSectionCommand[beforeskip=-1.6ex plus -0.5ex, afterskip=0.9ex plus 0.2ex]{section}
+\RedeclareSectionCommand[beforeskip=-1.2ex plus -0.4ex, afterskip=0.6ex plus 0.2ex]{subsection}
+\RedeclareSectionCommand[beforeskip=-1ex plus -0.3ex, runin=true]{paragraph}
+
+% cleanthesis leaves the head empty and puts the running mark and the page number in the
+% footer. It redefines the footer for `plain` as well, but KOMA's own centred
+% \cfoot{\pagemark} survives there, so every chapter-opening page -- which KOMA sets in
+% `plain` -- printed its number twice, once from each. Use the same style throughout.
+\renewcommand*{\chapterpagestyle}{scrheadings}
+
+% --------------------------
+% Maths, figures, tables
+% --------------------------
+\usepackage{mathtools}
+\usepackage{amssymb}
+\usepackage{float}% for [H] placement
+\usepackage{subcaption}
+\usepackage{booktabs}
+\usepackage{tabularx}
+% placeholder prose while the report is being written; every \lipsum is a paragraph
+% somebody still has to write. Remove the package once they are all gone.
+\usepackage{lipsum}
+
+\hypersetup{%
+    pdftitle={\reportTitle},
+    pdfsubject={\reportSubject},
+    pdfauthor={\reportAuthors},
+}
+
+% --------------------------
+% Shorthands used across the report
+% --------------------------
+\newcommand{\shapiq}{\texttt{shapiq}}
+\newcommand{\oddshap}{\mbox{OddSHAP}}
+\newcommand{\leverageshap}{\mbox{LeverageSHAP}}
+\newcommand{\polyshap}{\mbox{PolySHAP}}
+
+% Every reproduction opens with one of these, so the reader sees what was run before
+% reading any number. The three papers do not share a value function, so a configuration
+% read after the results is a configuration read too late.
+% Takes a short caption and a long one, like \caption[short]{long}: the long one carries the
+% provenance, which belongs under the table, but a list of tables wants the short one.
+%
+% tabularx has to scan its whole body, so it cannot be split across this environment's begin
+% and end. A p-column gives the same wrapping without that restriction.
+\newenvironment{configtable}[2]{%
+    \begin{table}[H]
+    \centering
+    \caption[#1]{#2}
+    \begin{tabular}{@{}l p{0.72\textwidth}@{}}
+    \toprule
+}{%
+    \bottomrule
+    \end{tabular}
+    \end{table}
+}

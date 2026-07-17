@@ -40,6 +40,7 @@ from core.constants import ESTIMATORS as EST
 from core.constants import ETA_BUDGETS, ETAS, VARIANT_CHOICES
 from core.harness import interaction_free_oddshap, load_oddshap, log_budgets, make_estimator, sfv
 
+
 class LookupGame:
     """Serve game values from the exact 2**n table the ground truth already built.
 
@@ -71,6 +72,8 @@ class LookupGame:
 
 
 N_INST = 30
+
+
 # Repo root that holds src/shapiq_games/... — the cluster clone, or (for a local GPU run)
 # walk up from this file until src/shapiq_games is found.
 def _find_repo() -> str:
@@ -145,21 +148,26 @@ def _require_gpu() -> None:
 
 def vit_builder():
     from shapiq_games.benchmark.local_xai.benchmark_image import ImageClassifier
+
     imgs = sorted(glob.glob(f"{REPO}/src/shapiq_games/benchmark/imagenet_examples/*.JPEG"))[:N_INST]
 
     def build(i):
-        g = ImageClassifier(model_name="vit_16_patches", x_explain_path=imgs[i], normalize=True, verbose=False)
+        g = ImageClassifier(
+            model_name="vit_16_patches", x_explain_path=imgs[i], normalize=True, verbose=False
+        )
         return g, g.n_players
+
     return build
 
 
 def distilbert_builder():
     from transformers import AutoTokenizer
     from shapiq_games.benchmark.local_xai.benchmark_language import SentimentAnalysis
+
     tok = AutoTokenizer.from_pretrained("lvwerra/distilbert-imdb")
     reviews = []
     for text in REVIEWS:
-        ids = tok(text)["input_ids"][1:1 + EXCERPT_TOKENS]
+        ids = tok(text)["input_ids"][1 : 1 + EXCERPT_TOKENS]
         if len(ids) == EXCERPT_TOKENS:
             reviews.append(tok.decode(ids))
         if len(reviews) >= N_INST:
@@ -171,6 +179,7 @@ def distilbert_builder():
     def build(i):
         g = SentimentAnalysis(input_text=reviews[i], device=0, verbose=False)
         return g, g.n_players
+
     return build
 
 
@@ -180,14 +189,27 @@ def main() -> None:
     ap.add_argument("--variant", default="v522_merged", choices=VARIANT_CHOICES)
     ap.add_argument("--start", type=int, default=0)
     ap.add_argument("--end", type=int, default=N_INST)
-    ap.add_argument("--experiments", nargs="+", default=["table1", "fig2", "eta"],
-                    choices=["table1", "fig2", "eta"],
-                    help="which experiments to run per instance (split for short backfill jobs)")
-    ap.add_argument("--eta-budgets", nargs="+", type=int, default=None,
-                    help="restrict the eta ablation to these budgets (default: all of ETA_BUDGETS)")
-    ap.add_argument("--fig2-max-budget", type=int, default=None,
-                    help="cap the Figure-2 budget grid (OddSHAP's regression is O(budget*features^2) "
-                         "at high budget; cap keeps the run tractable)")
+    ap.add_argument(
+        "--experiments",
+        nargs="+",
+        default=["table1", "fig2", "eta"],
+        choices=["table1", "fig2", "eta"],
+        help="which experiments to run per instance (split for short backfill jobs)",
+    )
+    ap.add_argument(
+        "--eta-budgets",
+        nargs="+",
+        type=int,
+        default=None,
+        help="restrict the eta ablation to these budgets (default: all of ETA_BUDGETS)",
+    )
+    ap.add_argument(
+        "--fig2-max-budget",
+        type=int,
+        default=None,
+        help="cap the Figure-2 budget grid (OddSHAP's regression is O(budget*features^2) "
+        "at high budget; cap keeps the run tractable)",
+    )
     args = ap.parse_args()
     _require_gpu()
     exp = set(args.experiments)
@@ -196,7 +218,7 @@ def main() -> None:
 
     for i in range(max(0, args.start), min(args.end, N_INST)):
         model_game, n = build(i)
-        ec = ExactComputer(game=model_game, n_players=n)   # evaluates the model on all 2**n
+        ec = ExactComputer(game=model_game, n_players=n)  # evaluates the model on all 2**n
         gt = singles(ec(index="SV"), n)
         # every approximator below reads from the exact table, not the deep model
         game = LookupGame(ec.coalition_lookup, ec.game_values, n, base=model_game)
@@ -205,7 +227,11 @@ def main() -> None:
         if "table1" in exp:
             for e in EST:
                 try:
-                    mse = float(np.mean((singles(make(e, n, args.variant).approximate(b1, game), n) - gt) ** 2))
+                    mse = float(
+                        np.mean(
+                            (singles(make(e, n, args.variant).approximate(b1, game), n) - gt) ** 2
+                        )
+                    )
                     print(f"PARTIAL_T1 {args.vf} {e} {i} {b1} {mse:.6e}", flush=True)
                 except (ValueError, RuntimeError):
                     pass
@@ -214,9 +240,10 @@ def main() -> None:
         # the approximator's own sampling+solve cost, NOT the deep-model eval time. For a
         # paper-faithful Fig. 5 (total wall-clock incl. model forwards) time a few budgets
         # against `model_game` instead.
-        fig2_budgets = [b for b in log_budgets(n)
-                        if args.fig2_max_budget is None or b <= args.fig2_max_budget]
-        for b in (fig2_budgets if "fig2" in exp else []):
+        fig2_budgets = [
+            b for b in log_budgets(n) if args.fig2_max_budget is None or b <= args.fig2_max_budget
+        ]
+        for b in fig2_budgets if "fig2" in exp else []:
             for e in EST:
                 try:
                     t0 = time.perf_counter()
@@ -228,15 +255,30 @@ def main() -> None:
                 except (ValueError, RuntimeError):
                     pass
         # Figure 4 / 11 — eta at three budgets
-        for budget in (eta_budgets if "eta" in exp else []):
+        for budget in eta_budgets if "eta" in exp else []:
             for et in ETAS:
                 try:
-                    mse = float(np.mean((singles(load_oddshap(args.variant)(n=n, random_state=0, interaction_factor=et).approximate(budget, game), n) - gt) ** 2))
+                    mse = float(
+                        np.mean(
+                            (
+                                singles(
+                                    load_oddshap(args.variant)(
+                                        n=n, random_state=0, interaction_factor=et
+                                    ).approximate(budget, game),
+                                    n,
+                                )
+                                - gt
+                            )
+                            ** 2
+                        )
+                    )
                     print(f"PARTIAL_ETA {args.vf} {et} {i} {budget} {mse:.6e}", flush=True)
                 except (ValueError, RuntimeError):
                     pass
             try:
-                iv0 = interaction_free_oddshap(n, oddshap_variant=args.variant).approximate(budget, game)
+                iv0 = interaction_free_oddshap(n, oddshap_variant=args.variant).approximate(
+                    budget, game
+                )
                 mse = float(np.mean((singles(iv0, n) - gt) ** 2))
                 print(f"PARTIAL_ETA {args.vf} base {i} {budget} {mse:.6e}", flush=True)
             except (ValueError, RuntimeError):

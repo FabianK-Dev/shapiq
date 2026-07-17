@@ -5,6 +5,8 @@ a common interface: pass a :class:`~shapiq.Game` and a computational budget, and
 :class:`~shapiq.interaction_values.InteractionValues` as output.
 """
 
+from typing import NoReturn
+
 from .base import Approximator
 from .marginals import OwenSamplingSV, StratifiedSamplingSV
 from .montecarlo import SHAPIQ, SVARM, SVARMIQ, UnbiasedKernelSHAP
@@ -37,7 +39,7 @@ except ImportError as _e:
             """Raise an informative ImportError pointing to the missing extra."""
             raise self._import_error
 
-        def approximate(self, *_args: object, **_kwargs: object) -> object:
+        def approximate(self, *_args: object, **_kwargs: object) -> NoReturn:
             """Unreachable, since ``__init__`` always raises.
 
             It exists so the placeholder is concrete: an abstract subclass would fail
@@ -60,7 +62,7 @@ except ImportError as _e:
             """Raise an informative ImportError pointing to the missing extra."""
             raise self._import_error
 
-        def approximate(self, *_args: object, **_kwargs: object) -> object:
+        def approximate(self, *_args: object, **_kwargs: object) -> NoReturn:
             """Unreachable, since ``__init__`` always raises.
 
             It exists so the placeholder is concrete: an abstract subclass would fail

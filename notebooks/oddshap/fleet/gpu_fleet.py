@@ -30,10 +30,10 @@ from queue import Queue, Empty
 
 import paramiko
 
-REMOTE_REPO = "/root/oddshap_reproduction"        # system disk, so an AutoDL image includes it
+REMOTE_REPO = "/root/oddshap_reproduction"  # system disk, so an AutoDL image includes it
 REMOTE_PY = "/root/miniconda3/bin/python"
-LOCAL_REPRO = Path(__file__).resolve().parents[1]   # local notebooks/oddshap/ dir to push
-GPU_VFS = ["distilbert", "vit16"]     # distilbert first (lighter GT) so results land sooner
+LOCAL_REPRO = Path(__file__).resolve().parents[1]  # local notebooks/oddshap/ dir to push
+GPU_VFS = ["distilbert", "vit16"]  # distilbert first (lighter GT) so results land sooner
 # per-instance forward-pass weight, used only for the *initial* ETA before real timings arrive
 _VF_WEIGHT = {"distilbert": 1.0, "vit16": 1.6}
 
@@ -53,12 +53,12 @@ class Job:
 @dataclass
 class MachineState:
     name: str
-    status: str = "idle"          # idle | running | offline
-    active: dict = field(default_factory=dict)   # slot -> {"job": key, "started": ts}
+    status: str = "idle"  # idle | running | offline
+    active: dict = field(default_factory=dict)  # slot -> {"job": key, "started": ts}
     slots: int = 1
     done: int = 0
     failed: int = 0
-    secs: list[float] = field(default_factory=list)   # per-instance wall times on this machine
+    secs: list[float] = field(default_factory=list)  # per-instance wall times on this machine
     gpu_util: float = 0.0
     gpu_mem_used: float = 0.0
     gpu_mem_total: float = 0.0
@@ -67,14 +67,25 @@ class MachineState:
 
 
 class Fleet:
-    def __init__(self, machines, variants, experiments, instances, outdir, hf_mirror=True,
-                 per_gpu=1, sync_code=True, eta_budgets=None, cores=48):
+    def __init__(
+        self,
+        machines,
+        variants,
+        experiments,
+        instances,
+        outdir,
+        hf_mirror=True,
+        per_gpu=1,
+        sync_code=True,
+        eta_budgets=None,
+        cores=48,
+    ):
         self.machines = machines
         self.experiments = experiments
-        self.per_gpu = per_gpu               # concurrent instances per GPU (saturate a small model)
+        self.per_gpu = per_gpu  # concurrent instances per GPU (saturate a small model)
         self.sync_code = sync_code
-        self.eta_budgets = eta_budgets       # e.g. [10000] for the reduced Fig4-only run
-        self.cores = cores                   # CPU cores per box (to size BLAS threads / process)
+        self.eta_budgets = eta_budgets  # e.g. [10000] for the reduced Fig4-only run
+        self.cores = cores  # CPU cores per box (to size BLAS threads / process)
         self.outdir = Path(outdir)
         self.outdir.mkdir(parents=True, exist_ok=True)
         self.hf_mirror = hf_mirror
@@ -83,11 +94,12 @@ class Fleet:
         for vf in GPU_VFS:
             for variant in variants:
                 for i in range(instances):
-                    self.q.put(Job(vf, variant, i)); self.jobs_total += 1
+                    self.q.put(Job(vf, variant, i))
+                    self.jobs_total += 1
         self.state = {m["name"]: MachineState(m["name"]) for m in machines}
         self.done = 0
         self.failed_final = 0
-        self.done_by_cell: dict[str, int] = {}   # "vf/variant" -> count
+        self.done_by_cell: dict[str, int] = {}  # "vf/variant" -> count
         self.all_secs: list[float] = []
         self.per_vf_secs: dict[str, list[float]] = {vf: [] for vf in GPU_VFS}
         self.start_time = time.time()
@@ -96,7 +108,8 @@ class Fleet:
 
     # --- remote helpers ---------------------------------------------------- #
     def _connect(self, m):
-        c = paramiko.SSHClient(); c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        c = paramiko.SSHClient()
+        c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         c.connect(m["host"], port=m["port"], username=m["user"], password=m["password"], timeout=30)
         return c
 
@@ -112,14 +125,16 @@ class Fleet:
             for name in os.listdir(local):
                 if name in ("__pycache__", "out", "data"):
                     continue
-                lp = local / name; rp = f"{remote}/{name}"
+                lp = local / name
+                rp = f"{remote}/{name}"
                 if lp.is_dir():
                     _put(lp, rp)
                 elif name.endswith((".py", ".sh")):
                     sf.put(str(lp), rp)
 
         _put(LOCAL_REPRO, remote_root)
-        sf.close(); c.close()
+        sf.close()
+        c.close()
 
     def _run_job(self, c, job: Job) -> tuple[bool, str]:
         hf = "HF_ENDPOINT=https://hf-mirror.com " if self.hf_mirror else ""
@@ -128,18 +143,24 @@ class Fleet:
         # eta's odd-Fourier regression is CPU-heavy; cap BLAS threads so per_gpu processes
         # share the cores without oversubscription (threads = cores / per_gpu).
         thr = max(1, self.cores // self.per_gpu) if self.cores else 4
-        threads = (f"OMP_NUM_THREADS={thr} OPENBLAS_NUM_THREADS={thr} "
-                   f"MKL_NUM_THREADS={thr} NUMEXPR_NUM_THREADS={thr} ")
+        threads = (
+            f"OMP_NUM_THREADS={thr} OPENBLAS_NUM_THREADS={thr} "
+            f"MKL_NUM_THREADS={thr} NUMEXPR_NUM_THREADS={thr} "
+        )
         log = f"notebooks/oddshap/data/gpu_{job.vf}_{job.variant}.log"
-        cmd = (f"export PATH={REMOTE_PY.rsplit('/',1)[0]}:$PATH TMPDIR=/tmp {hf}{threads}; "
-               f"cd {REMOTE_REPO} && mkdir -p notebooks/oddshap/data && "
-               f"{REMOTE_PY} notebooks/oddshap/cluster/train_gpu.py --vf {job.vf} --variant {job.variant} "
-               f"--start {job.inst} --end {job.inst + 1} --experiments {exp}{eta} 2>&1 | tee -a {log}")
+        cmd = (
+            f"export PATH={REMOTE_PY.rsplit('/', 1)[0]}:$PATH TMPDIR=/tmp {hf}{threads}; "
+            f"cd {REMOTE_REPO} && mkdir -p notebooks/oddshap/data && "
+            f"{REMOTE_PY} notebooks/oddshap/cluster/train_gpu.py --vf {job.vf} --variant {job.variant} "
+            f"--start {job.inst} --end {job.inst + 1} --experiments {exp}{eta} 2>&1 | tee -a {log}"
+        )
         _i, o, e = c.exec_command(cmd, timeout=3600)
         out = o.read().decode(errors="replace") + e.read().decode(errors="replace")
         ok = f"INSTANCE_DONE {job.vf} {job.variant} {job.inst}" in out
         # keep only the PARTIAL_* lines centrally
-        partials = "\n".join(l for l in out.splitlines() if l.startswith("PARTIAL_") or l.startswith("INSTANCE_DONE"))
+        partials = "\n".join(
+            l for l in out.splitlines() if l.startswith("PARTIAL_") or l.startswith("INSTANCE_DONE")
+        )
         with open(self.outdir / f"gpu_{job.vf}_{job.variant}.log", "a", encoding="utf-8") as f:
             f.write(partials + "\n")
         return ok, out
@@ -148,10 +169,16 @@ class Fleet:
         try:
             _i, o, _e = c.exec_command(
                 "nvidia-smi --query-gpu=utilization.gpu,memory.used,memory.total,temperature.gpu "
-                "--format=csv,noheader,nounits", timeout=15)
+                "--format=csv,noheader,nounits",
+                timeout=15,
+            )
             util, used, total, temp = o.read().decode().strip().split(",")[:4]
             st.gpu_util, st.gpu_mem_used, st.gpu_mem_total, st.gpu_temp = (
-                float(util), float(used), float(total), float(temp))
+                float(util),
+                float(used),
+                float(total),
+                float(temp),
+            )
             st.last_beat = time.time()
         except Exception:
             pass
@@ -162,7 +189,8 @@ class Fleet:
         try:
             c = self._connect(m)
         except Exception as exc:
-            st.status = "offline"; st.active[slot] = {"job": f"connect failed: {exc}", "started": 0}
+            st.status = "offline"
+            st.active[slot] = {"job": f"connect failed: {exc}", "started": 0}
             return
         st.last_beat = time.time()
         while True:
@@ -175,7 +203,8 @@ class Fleet:
                         st.status = "idle"
                 break
             with self.lock:
-                st.status = "running"; st.active[slot] = {"job": job.key, "started": time.time()}
+                st.status = "running"
+                st.active[slot] = {"job": job.key, "started": time.time()}
             if slot == 0:
                 self._poll_gpu(c, st)
             t0 = time.time()
@@ -188,13 +217,17 @@ class Fleet:
             dt = time.time() - t0
             with self.lock:
                 if ok:
-                    st.done += 1; st.secs.append(dt)
+                    st.done += 1
+                    st.secs.append(dt)
                     self.done += 1
-                    self.all_secs.append(dt); self.per_vf_secs[job.vf].append(dt)
-                    self.done_by_cell[f"{job.vf}/{job.variant}"] = \
+                    self.all_secs.append(dt)
+                    self.per_vf_secs[job.vf].append(dt)
+                    self.done_by_cell[f"{job.vf}/{job.variant}"] = (
                         self.done_by_cell.get(f"{job.vf}/{job.variant}", 0) + 1
+                    )
                 else:
-                    st.failed += 1; job.attempts += 1
+                    st.failed += 1
+                    job.attempts += 1
                     if job.attempts < 3:
                         self.q.put(job)
                     else:
@@ -211,6 +244,7 @@ class Fleet:
         with self.lock:
             elapsed = time.time() - self.start_time
             remaining = self.jobs_total - self.done - self.failed_final
+
             # adaptive per-VF median time, fall back to weighted prior
             def vf_time(vf):
                 s = self.per_vf_secs[vf]
@@ -218,6 +252,7 @@ class Fleet:
                     return sorted(s)[len(s) // 2]
                 base = sorted(self.all_secs)[len(self.all_secs) // 2] if self.all_secs else 180.0
                 return base * _VF_WEIGHT[vf]
+
             # total concurrent slots across the fleet = machines x per_gpu
             active = max(1, sum(st.slots for st in self.state.values() if st.status != "offline"))
             # remaining wall time = (sum of remaining per-VF work) / fleet parallelism
@@ -232,8 +267,10 @@ class Fleet:
             throughput = self.done / elapsed * 60 if elapsed > 0 else 0.0
             return {
                 "elapsed_s": elapsed,
-                "jobs_total": self.jobs_total, "done": self.done,
-                "failed_final": self.failed_final, "remaining": remaining,
+                "jobs_total": self.jobs_total,
+                "done": self.done,
+                "failed_final": self.failed_final,
+                "remaining": remaining,
                 "pct": 100.0 * self.done / self.jobs_total if self.jobs_total else 0,
                 "throughput_per_min": throughput,
                 "eta_s": rem_secs_total,
@@ -259,12 +296,17 @@ class Fleet:
             print(f"syncing code to {len(self.machines)} machines via SFTP …")
             for m in self.machines:
                 try:
-                    self._sync_code(m); print(f"  synced {m['name']}")
+                    self._sync_code(m)
+                    print(f"  synced {m['name']}")
                 except Exception as exc:
                     print(f"  WARN sync failed {m['name']}: {exc}")
-        sw = threading.Thread(target=self._status_loop, daemon=True); sw.start()
-        workers = [threading.Thread(target=self._worker, args=(m, slot), daemon=True)
-                   for m in self.machines for slot in range(self.per_gpu)]
+        sw = threading.Thread(target=self._status_loop, daemon=True)
+        sw.start()
+        workers = [
+            threading.Thread(target=self._worker, args=(m, slot), daemon=True)
+            for m in self.machines
+            for slot in range(self.per_gpu)
+        ]
         for w in workers:
             w.start()
         for w in workers:
@@ -272,8 +314,10 @@ class Fleet:
         self.status_running = False
         snap = self._status_snapshot()
         (self.outdir / "fleet_status.json").write_text(json.dumps(snap, indent=2))
-        print(f"DONE  {self.done}/{self.jobs_total} ok, {self.failed_final} failed, "
-              f"{snap['gpu_hours']:.2f} GPU-hours, {snap['elapsed_s']/60:.1f} min wall")
+        print(
+            f"DONE  {self.done}/{self.jobs_total} ok, {self.failed_final} failed, "
+            f"{snap['gpu_hours']:.2f} GPU-hours, {snap['elapsed_s'] / 60:.1f} min wall"
+        )
 
 
 def parse_machines(path: str):
@@ -283,8 +327,15 @@ def parse_machines(path: str):
         if not line or line.startswith("#"):
             continue
         host, port, user, pw = line.split(":", 3)
-        out.append({"name": f"{host}:{port}", "host": host, "port": int(port),
-                    "user": user, "password": pw})
+        out.append(
+            {
+                "name": f"{host}:{port}",
+                "host": host,
+                "port": int(port),
+                "user": user,
+                "password": pw,
+            }
+        )
     return out
 
 
@@ -295,21 +346,45 @@ def main():
     ap.add_argument("--experiments", nargs="+", default=["table1", "eta"])
     ap.add_argument("--instances", type=int, default=30)
     ap.add_argument("--outdir", default="notebooks/oddshap/fleet/out")
-    ap.add_argument("--per-gpu", type=int, default=6,
-                    help="concurrent instances per GPU (6 saturates a 3080 Ti on these small models)")
-    ap.add_argument("--eta-budgets", nargs="+", type=int, default=None,
-                    help="restrict eta ablation budgets, e.g. 10000 for the reduced Fig4-only run")
-    ap.add_argument("--cores", type=int, default=48, help="CPU cores per box (sizes BLAS threads/process)")
+    ap.add_argument(
+        "--per-gpu",
+        type=int,
+        default=6,
+        help="concurrent instances per GPU (6 saturates a 3080 Ti on these small models)",
+    )
+    ap.add_argument(
+        "--eta-budgets",
+        nargs="+",
+        type=int,
+        default=None,
+        help="restrict eta ablation budgets, e.g. 10000 for the reduced Fig4-only run",
+    )
+    ap.add_argument(
+        "--cores", type=int, default=48, help="CPU cores per box (sizes BLAS threads/process)"
+    )
     ap.add_argument("--no-hf-mirror", action="store_true")
-    ap.add_argument("--no-sync-code", action="store_true", help="skip SFTP code push (clones already current)")
+    ap.add_argument(
+        "--no-sync-code", action="store_true", help="skip SFTP code push (clones already current)"
+    )
     a = ap.parse_args()
     machines = parse_machines(a.machines)
     njobs = len(a.variants) * len(GPU_VFS) * a.instances
-    print(f"fleet: {len(machines)} machines x {a.per_gpu}/gpu = {len(machines)*a.per_gpu} slots, "
-          f"{njobs} jobs, experiments={a.experiments}, eta_budgets={a.eta_budgets or 'all'}")
-    Fleet(machines, a.variants, a.experiments, a.instances, a.outdir,
-          hf_mirror=not a.no_hf_mirror, per_gpu=a.per_gpu,
-          sync_code=not a.no_sync_code, eta_budgets=a.eta_budgets, cores=a.cores).run()
+    print(
+        f"fleet: {len(machines)} machines x {a.per_gpu}/gpu = {len(machines) * a.per_gpu} slots, "
+        f"{njobs} jobs, experiments={a.experiments}, eta_budgets={a.eta_budgets or 'all'}"
+    )
+    Fleet(
+        machines,
+        a.variants,
+        a.experiments,
+        a.instances,
+        a.outdir,
+        hf_mirror=not a.no_hf_mirror,
+        per_gpu=a.per_gpu,
+        sync_code=not a.no_sync_code,
+        eta_budgets=a.eta_budgets,
+        cores=a.cores,
+    ).run()
 
 
 if __name__ == "__main__":

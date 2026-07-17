@@ -53,7 +53,8 @@ from sklearn.model_selection import train_test_split
 
 from shapiq import ExactComputer
 from shapiq.datasets import load_adult_census, load_california_housing
-from shapiq.tree.explainer import TreeExplainer
+from shapiq.tree.explainer import TreeExplainer  # noqa: F401
+from shapiq.tree.interventional.explainer import InterventionalTreeExplainer
 from shapiq_games.datasets import (
     load_communities_and_crime,
     load_corrgroups60,
@@ -161,6 +162,10 @@ class GameSpec:
     factory: Any
 
 
+# The split and model are fixed across repeats; see make_ml_game.
+MODEL_SEED = 0
+
+
 def make_ml_game(dataset_name: str, seed: int):
     if dataset_name == "California":
         X, y = load_california_housing(to_numpy=True)
@@ -193,12 +198,17 @@ def make_ml_game(dataset_name: str, seed: int):
     else:
         raise ValueError(f"Unknown dataset: {dataset_name}")
 
-    X_train, X_test, y_train, _ = train_test_split(X, y, test_size=0.2, random_state=seed)
-    model = xgb.XGBRegressor(n_estimators=100, max_depth=4, random_state=seed, verbosity=0)
+    # The split and the model are pinned, and `seed` selects which held-out prediction to
+    # explain. Letting it vary the split and the model too would rebuild the game underneath
+    # every repeat -- a different tree has different Shapley values -- so the spread across
+    # repeats would mix estimator noise with model noise and could not be read as either. The
+    # papers hold the model fixed and repeat over predictions; this matches that.
+    X_train, X_test, y_train, _ = train_test_split(X, y, test_size=0.2, random_state=MODEL_SEED)
+    model = xgb.XGBRegressor(n_estimators=100, max_depth=4, random_state=MODEL_SEED, verbosity=0)
     model.fit(X_train, y_train)
 
     bg_mean = X_train.mean(axis=0)
-    x_instance = X_test[0]
+    x_instance = X_test[seed % len(X_test)]
 
     def game_fn(Z: np.ndarray) -> np.ndarray:
         X_masked = np.where(Z, x_instance[np.newaxis, :], bg_mean[np.newaxis, :])
@@ -206,6 +216,7 @@ def make_ml_game(dataset_name: str, seed: int):
 
     game_fn.model = model
     game_fn.x_instance = x_instance
+    game_fn.baseline = bg_mean
 
     return game_fn
 
@@ -389,8 +400,18 @@ def run_sweep(
                         spec.n,
                     )
                 else:
-                    explainer = TreeExplainer(model=truth_game.model)
-                    iv_exact = explainer.explain(truth_game.x_instance, max_order=1)
+                    # The game masks features against a single baseline row, so its Shapley
+                    # values are the *interventional* TreeSHAP values w.r.t. that same row.
+                    # Path-dependent TreeSHAP explains a different value function and differs
+                    # from the game by ~30%, which would score every approximator against a
+                    # target it was never asked to approximate.
+                    explainer = InterventionalTreeExplainer(
+                        model=truth_game.model,
+                        data=truth_game.baseline.reshape(1, -1),
+                        max_order=1,
+                        index="SV",
+                    )
+                    iv_exact = explainer.explain_function(x=truth_game.x_instance)
                     truth_cache[key] = canonical_sv_vector(iv_exact, spec.n)
 
             ground_truth = truth_cache[key]
@@ -486,39 +507,96 @@ def write_csv(results: list[CellResult], path: Path) -> None:
 # -----------------------------------------------------------------------------
 
 
+# Colour-blind-safe and readable as a thin line on white. Drawn from Okabe-Ito and Paul Tol's
+# muted set, keeping only entries that clear a 3:1 contrast ratio against the background: raw
+# Okabe-Ito is built for fills, and three of its eight (yellow at 1.3:1, orange and sky blue at
+# 2.3:1) all but vanish as a 1.5pt stroke. Hue never carries meaning alone -- marker and dash
+# repeat the encoding -- so near hues here are disambiguated by shape.
+PALETTE: list[str] = [
+    "#0072B2",  # blue          5.2:1
+    "#D55E00",  # vermillion    3.9:1
+    "#009E73",  # bluish green  3.4:1
+    "#CC79A7",  # orchid        3.1:1
+    "#332288",  # indigo       12.2:1
+    "#999933",  # olive         3.0:1
+    "#882255",  # wine          8.7:1
+    "#000000",  # black        21.0:1
+]
+_MARKERS: list[str] = ["o", "s", "^", "D", "v", "P", "X"]
+# Line style says which family a curve belongs to: solid for the approximators this project
+# contributed, dashed for the baselines. One dash pattern, one weight -- the style is a grouping,
+# not a per-series identifier, which is what colour and marker are for.
+GROUP_APPROXIMATORS: frozenset[str] = frozenset(
+    {"OddSHAP", "LeverageSHAP", "PolySHAP", "PolySHAPKAdd", "PolySHAPPartial", "PolySHAPPrior"}
+)
+
+
 class PlotStyle:
     """Base strategy for plot styling. Defaults to generic visuals."""
 
     figsize: tuple[float, float] = (8, 5)
-    use_medians: bool = False
+    # Median + IQR, not mean +/- std: the error metrics are non-negative and heavy-tailed, so
+    # `mean - std` routinely lands below zero, which cannot be drawn on a log axis and forces a
+    # symlog one with a meaningless negative half.
+    use_medians: bool = True
 
     def get_line_kwargs(self, method_name: str, index: int) -> dict[str, Any]:
-        """Return styling attributes for the method's line."""
-        return {"linestyle": "-", "marker": "o", "linewidth": 1.5}
+        """Return styling attributes for the method's line.
+
+        Matplotlib's default cycle has ten colours, so with fifteen registered
+        approximators four pairs would share one, and every line would carry the same
+        marker and dash pattern. Cycle an eight-colour colour-blind-safe palette
+        (Okabe-Ito) against markers and dash patterns instead, so each method is
+        identifiable by shape and stroke and never by colour alone.
+        """
+        # The cycle lengths are coprime, so colour, marker and dash advance together and no
+        # combination repeats until well past the number of registered approximators. Marker
+        # and dash therefore vary from the first series, which matters when a plot holds only
+        # a handful of methods and every one of them would otherwise be a solid circle.
+        ours = method_name in GROUP_APPROXIMATORS
+        return {
+            "color": PALETTE[index % len(PALETTE)],
+            "marker": _MARKERS[index % len(_MARKERS)],
+            "linestyle": "-" if ours else "--",
+            "linewidth": 1.7,
+            "markersize": 4.5,
+            "markeredgewidth": 0,
+            "zorder": 3 if ours else 2,
+        }
 
     def get_fill_alpha(self) -> float:
         """Opacity of the standard deviation/quartile bands."""
-        return 0.15
+        return 0.12
 
     def format_axes(
         self, ax: Any, game_name: str, game_n: int, metric: str, is_lower_better: bool
     ) -> None:
         """Decorate the metric axes."""
         if is_lower_better:
-            ax.set_yscale("symlog", linthresh=1e-12)
+            ax.set_yscale("log")
         ax.set_xlabel("Budget (log scale)")
         ax.set_ylabel(f"{metric}{' (log scale)' if is_lower_better else ''}")
         ax.set_title(f"{metric} vs budget — {game_name}")
-        ax.grid(True, which="both", alpha=0.3)
-        ax.legend(fontsize=8, loc="best")
+        ax.grid(True, which="major", alpha=0.25, linewidth=0.6)
+        for side in ("top", "right"):
+            ax.spines[side].set_visible(False)
+        # The default handle is about two characters wide and the marker sits in its
+        # middle, which leaves too little line for a dash pattern to be visible. The
+        # pattern is half of how a series is identified, so give the handle room.
+        ax.legend(fontsize=8, loc="best", handlelength=4.0, handletextpad=0.8)
 
     def format_runtime_axes(self, ax: Any, game_name: str, game_n: int) -> None:
         """Decorate the runtime axes."""
         ax.set_xlabel("Budget (log scale)")
         ax.set_ylabel("Runtime (s, log scale)")
         ax.set_title(f"Runtime vs budget — {game_name}")
-        ax.grid(True, which="both", alpha=0.3)
-        ax.legend(fontsize=8, loc="best")
+        ax.grid(True, which="major", alpha=0.25, linewidth=0.6)
+        for side in ("top", "right"):
+            ax.spines[side].set_visible(False)
+        # The default handle is about two characters wide and the marker sits in its
+        # middle, which leaves too little line for a dash pattern to be visible. The
+        # pattern is half of how a series is identified, so give the handle room.
+        ax.legend(fontsize=8, loc="best", handlelength=4.0, handletextpad=0.8)
 
 
 class MuscoWitterStyle(PlotStyle):
@@ -574,7 +652,7 @@ class MuscoWitterStyle(PlotStyle):
         # Paper aesthetic specifics
         ax.tick_params(direction="in", which="both")
         ax.grid(True, which="both", alpha=0.1)
-        ax.legend(fontsize=8, loc="best", framealpha=0.9)
+        ax.legend(fontsize=8, loc="best", framealpha=0.9, handlelength=4.0, handletextpad=0.8)
 
     def format_runtime_axes(self, ax: Any, game_name: str, game_n: int) -> None:
         base_name = game_name.split("(")[0].strip()
@@ -584,7 +662,7 @@ class MuscoWitterStyle(PlotStyle):
 
         ax.tick_params(direction="in", which="both")
         ax.grid(True, which="both", alpha=0.1)
-        ax.legend(fontsize=8, loc="best", framealpha=0.9)
+        ax.legend(fontsize=8, loc="best", framealpha=0.9, handlelength=4.0, handletextpad=0.8)
 
 
 # The global registry. To add a new style, subclass PlotStyle and add it here.
@@ -617,13 +695,20 @@ def _aggregate_by_method(
         budgets = sorted(budget_to_values)
         mid_vals, lower_vals, upper_vals = [], [], []
 
+        # Only the error metrics are drawn on a log axis, which cannot render zero, so only
+        # they are clipped away from it. Precision and KendallTau are drawn on a linear axis
+        # and must keep their true values: KendallTau is negative wherever a method ranks the
+        # features against the ground truth, and clipping would silently redraw that as no
+        # correlation at all.
+        clip_to_positive = metric in _LOWER_IS_BETTER
+
         for b in budgets:
             vs = budget_to_values[b]
             if use_medians:
-                vs_clipped = np.clip(vs, 1e-14, None)
-                mid_vals.append(float(np.median(vs_clipped)))
-                lower_vals.append(float(np.percentile(vs_clipped, 25)))
-                upper_vals.append(float(np.percentile(vs_clipped, 75)))
+                vs_arr = np.clip(vs, 1e-14, None) if clip_to_positive else np.asarray(vs, float)
+                mid_vals.append(float(np.median(vs_arr)))
+                lower_vals.append(float(np.percentile(vs_arr, 25)))
+                upper_vals.append(float(np.percentile(vs_arr, 75)))
             else:
                 mean = float(np.mean(vs))
                 std = float(statistics.pstdev(vs)) if len(vs) > 1 else 0.0
@@ -800,7 +885,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--n", default="6,8,10", type=_parse_comma_int)
     parser.add_argument("--budgets", default="0.05,0.25,0.5,1.0", type=_parse_comma_float)
     parser.add_argument("--budget-mults", default=None, type=_parse_comma_float)
-    parser.add_argument("--seeds", default="0,42,1337", type=_parse_comma_int)
+    parser.add_argument(
+        "--seeds",
+        default="0,1,2",
+        type=_parse_comma_int,
+        help=(
+            "Repeats. For the ML games each value selects a held-out prediction to explain "
+            "(the model is fixed); for the SOUM games it draws the random game. It also seeds "
+            "the estimator, so a repeat is one prediction explained once."
+        ),
+    )
     parser.add_argument("--name", default=None)
     parser.add_argument("--output-root", default="benchmark/results", type=Path)
     parser.add_argument("--plot", action="store_true")

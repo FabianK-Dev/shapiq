@@ -1,0 +1,30 @@
+# LaTeX build artifacts
+*.aux
+*.bbl
+*.bbl-SAVE-ERROR
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.toc
+*.run.xml
+*.synctex.gz
+*.lof
+*.lot
+*.xdv
+*.idx
+*.ilg
+*.ind
+tex.log
+build.log
+
+# The built document. Regenerate with `latexmk -pdf new-shapley-value-approximators.tex`;
+# committing it would churn on every edit and conflict on every merge. Note this is
+# deliberately not `*.pdf`, which would also swallow the logos in gfx/.
+new-shapley-value-approximators.pdf
+
+# Internal working notes: how the report was planned and tracked, not part of it. Kept on
+# disk, out of the deliverable.
+plan/
