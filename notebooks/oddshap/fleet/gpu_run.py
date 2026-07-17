@@ -28,10 +28,14 @@ import paramiko
 
 REMOTE_REPO = "/root/oddshap_reproduction"
 REMOTE_PY = "/root/miniconda3/bin/python"
-CELLS = [("distilbert", "v522_merged"), ("distilbert", "v560_improved"),
-         ("vit16", "v522_merged"), ("vit16", "v560_improved")]
+CELLS = [
+    ("distilbert", "v522_merged"),
+    ("distilbert", "v560_improved"),
+    ("vit16", "v522_merged"),
+    ("vit16", "v560_improved"),
+]
 N_INST = 30
-SHARD = 5                       # instances per detached process
+SHARD = 5  # instances per detached process
 OUT = Path("notebooks/oddshap/fleet/out")
 
 
@@ -47,7 +51,8 @@ def parse_machines(path):
 
 
 def connect(m):
-    c = paramiko.SSHClient(); c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    c = paramiko.SSHClient()
+    c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     c.connect(m["host"], port=m["port"], username=m["user"], password=m["pw"], timeout=30)
     return c
 
@@ -81,18 +86,20 @@ def launch(machines, assignment, experiments, extra=""):
     exp = " ".join(experiments)
     for m in machines:
         c = connect(m)
-        run(c, "pkill -f train_gpu 2>/dev/null; sleep 2")   # clear any stuck jobs
+        run(c, "pkill -f train_gpu 2>/dev/null; sleep 2")  # clear any stuck jobs
         run(c, f"mkdir -p {REMOTE_REPO}/notebooks/oddshap/data")
         for vf, var, s, e in assignment[m["name"]]:
             log = f"notebooks/oddshap/data/{shard_name(vf, var, s, e)}.log"
             # setsid + redirect all three streams away from the channel so exec_command
             # returns immediately and the job survives this connection closing.
-            cmd = (f"cd {REMOTE_REPO}; "
-                   f"HF_ENDPOINT=https://hf-mirror.com HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 "
-                   f"TMPDIR=/tmp OMP_NUM_THREADS=8 OPENBLAS_NUM_THREADS=8 MKL_NUM_THREADS=8 "
-                   f"setsid {REMOTE_PY} notebooks/oddshap/cluster/train_gpu.py --vf {vf} --variant {var} "
-                   f"--start {s} --end {e} --experiments {exp}{extra} > {log} 2>&1 < /dev/null &")
-            c.exec_command(cmd)          # fire and forget — do NOT read (would block on the &)
+            cmd = (
+                f"cd {REMOTE_REPO}; "
+                f"HF_ENDPOINT=https://hf-mirror.com HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 "
+                f"TMPDIR=/tmp OMP_NUM_THREADS=8 OPENBLAS_NUM_THREADS=8 MKL_NUM_THREADS=8 "
+                f"setsid {REMOTE_PY} notebooks/oddshap/cluster/train_gpu.py --vf {vf} --variant {var} "
+                f"--start {s} --end {e} --experiments {exp}{extra} > {log} 2>&1 < /dev/null &"
+            )
+            c.exec_command(cmd)  # fire and forget — do NOT read (would block on the &)
             time.sleep(0.4)
         print(f"launched {len(assignment[m['name']])} shards on {m['name']}", flush=True)
         time.sleep(1)
@@ -108,10 +115,20 @@ def poll(machines, total, interval=20):
         for m in machines:
             try:
                 c = connect(m)
-                d = int(run(c, f"grep -h INSTANCE_DONE {REMOTE_REPO}/notebooks/oddshap/data/shard_*.log 2>/dev/null | wc -l") or 0)
+                d = int(
+                    run(
+                        c,
+                        f"grep -h INSTANCE_DONE {REMOTE_REPO}/notebooks/oddshap/data/shard_*.log 2>/dev/null | wc -l",
+                    )
+                    or 0
+                )
                 pr = int(run(c, "pgrep -f train_gpu | wc -l") or 0)
-                u = run(c, "nvidia-smi --query-gpu=utilization.gpu,memory.used --format=csv,noheader,nounits | head -1")
-                done += d; alive += (1 if pr else 0)
+                u = run(
+                    c,
+                    "nvidia-smi --query-gpu=utilization.gpu,memory.used --format=csv,noheader,nounits | head -1",
+                )
+                done += d
+                alive += 1 if pr else 0
                 util_line.append(f"{m['name'].split(':')[1]}:{d}done/{pr}p/util {u}")
                 c.close()
             except Exception as ex:
@@ -121,8 +138,11 @@ def poll(machines, total, interval=20):
         el = time.time() - start
         rate = done / el * 60 if el > 0 else 0
         eta = (total - done) / rate if rate > 0 else float("inf")
-        print(f"[{time.strftime('%H:%M:%S')}] {done}/{total} done · {rate:.1f}/min · "
-              f"ETA {eta:.0f}min | " + " | ".join(util_line), flush=True)
+        print(
+            f"[{time.strftime('%H:%M:%S')}] {done}/{total} done · {rate:.1f}/min · "
+            f"ETA {eta:.0f}min | " + " | ".join(util_line),
+            flush=True,
+        )
         if done >= total:
             print("ALL DONE", flush=True)
             break
@@ -132,12 +152,14 @@ def poll(machines, total, interval=20):
 def pull(machines):
     OUT.mkdir(parents=True, exist_ok=True)
     for m in machines:
-        c = connect(m); sf = c.open_sftp()
+        c = connect(m)
+        sf = c.open_sftp()
         d = f"{REMOTE_REPO}/notebooks/oddshap/data"
         for fn in run(c, f"ls {d}/shard_*.log 2>/dev/null").split():
             base = fn.split("/")[-1]
             sf.get(fn, str(OUT / f"{m['name'].split(':')[1]}_{base}"))
-        sf.close(); c.close()
+        sf.close()
+        c.close()
         print(f"pulled from {m['name']}", flush=True)
 
 
@@ -151,8 +173,12 @@ def main():
     ap.add_argument("--experiments", nargs="+", default=["table1", "fig2", "eta"])
     ap.add_argument("--eta-budgets", nargs="+", type=int, default=None)
     ap.add_argument("--fig2-max-budget", type=int, default=None)
-    ap.add_argument("--only-vf", default=None, choices=["vit16", "distilbert"],
-                    help="restrict to one value function's cells (e.g. re-run just ViT)")
+    ap.add_argument(
+        "--only-vf",
+        default=None,
+        choices=["vit16", "distilbert"],
+        help="restrict to one value function's cells (e.g. re-run just ViT)",
+    )
     ap.add_argument("--poll-only", action="store_true")
     ap.add_argument("--pull", action="store_true")
     a = ap.parse_args()
@@ -161,7 +187,8 @@ def main():
     shards = build_shards(cells)
     total = len(cells) * N_INST
     if a.pull:
-        pull(machines); return
+        pull(machines)
+        return
     if not a.poll_only:
         assignment = assign(shards, machines)
         extra = ""
@@ -169,8 +196,11 @@ def main():
             extra += " --eta-budgets " + " ".join(map(str, a.eta_budgets))
         if a.fig2_max_budget:
             extra += f" --fig2-max-budget {a.fig2_max_budget}"
-        print(f"{len(shards)} shards over {len(machines)} machines, {total} instances "
-              f"(vf={a.only_vf or 'all'}) · opts:{extra or 'full'}", flush=True)
+        print(
+            f"{len(shards)} shards over {len(machines)} machines, {total} instances "
+            f"(vf={a.only_vf or 'all'}) · opts:{extra or 'full'}",
+            flush=True,
+        )
         launch(machines, assignment, a.experiments, extra)
     poll(machines, total)
     pull(machines)

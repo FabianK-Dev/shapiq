@@ -40,7 +40,11 @@ from shapiq.tree.interventional.explainer import InterventionalTreeExplainer
 from shapiq_games.benchmark.interventionaltreeshapiq_xai import InterventionalGame
 
 from .constants import (  # noqa: F401  (re-exported for callers)
-    BASELINE_ESTIMATORS, DEFAULT_VARIANT, ESTIMATORS, ETA_BUDGETS, ETAS,
+    BASELINE_ESTIMATORS,
+    DEFAULT_VARIANT,
+    ESTIMATORS,
+    ETA_BUDGETS,
+    ETAS,
     INTERACTION_FREE_FACTOR,
 )
 from .variants import load_oddshap, variant_label
@@ -112,7 +116,9 @@ def interaction_free_oddshap(n: int, *, oddshap_variant: str = DEFAULT_VARIANT):
     ``INTERACTION_FREE_FACTOR`` constant. Centralised here so the monkey-patch lives in one
     place instead of being copied across the cluster scripts.
     """
-    est = load_oddshap(oddshap_variant)(n=n, random_state=0, interaction_factor=INTERACTION_FREE_FACTOR)
+    est = load_oddshap(oddshap_variant)(
+        n=n, random_state=0, interaction_factor=INTERACTION_FREE_FACTOR
+    )
     est._select_odd_interactions = lambda **kw: []  # noqa: SLF001
     return est
 
@@ -125,7 +131,9 @@ def make_game(model, background, target, *, is_classifier: bool) -> "Interventio
     explainer (which is not fork-safe).
     """
     return InterventionalGame(
-        model=model, reference_data=background, target_instance=target,
+        model=model,
+        reference_data=background,
+        target_instance=target,
         class_index=1 if is_classifier else None,
     )
 
@@ -139,7 +147,9 @@ def warm_dispatch() -> None:
 
         r = np.random.default_rng(0)
         convert_tree_model(
-            LGBMRegressor(n_estimators=2, max_depth=2, verbose=-1).fit(r.random((30, 3)), r.random(30))
+            LGBMRegressor(n_estimators=2, max_depth=2, verbose=-1).fit(
+                r.random((30, 3)), r.random(30)
+            )
         )
     except ImportError:
         pass
@@ -151,7 +161,7 @@ class PreparedVF:
     name: str
     model: object
     background: np.ndarray
-    explainer: object          # InterventionalTreeExplainer (exact interventional GT)
+    explainer: object  # InterventionalTreeExplainer (exact interventional GT)
     n: int
     x_test: np.ndarray
     is_classifier: bool
@@ -181,7 +191,10 @@ def prepare_vf(loader, kind: str, *, classifier: bool) -> PreparedVF:
     rng = np.random.default_rng(RANDOM_STATE)
     bg = x_tr[rng.choice(x_tr.shape[0], size=min(N_BACKGROUND, x_tr.shape[0]), replace=False)]
     explainer = InterventionalTreeExplainer(
-        model=model, data=bg.astype(np.float32), index="SV", max_order=1,
+        model=model,
+        data=bg.astype(np.float32),
+        index="SV",
+        max_order=1,
         class_index=1 if is_clf else None,
     )
     return PreparedVF(loader.__name__, model, bg, explainer, n, x_te, is_clf)
@@ -189,14 +202,28 @@ def prepare_vf(loader, kind: str, *, classifier: bool) -> PreparedVF:
 
 def log_budgets(n: int, n_points: int = 10, hi_cap: int = 20_000):
     """Log-spaced integer budgets from d+1 to min(2**d, hi_cap) — the paper's Fig-2 grid."""
-    hi = min(2 ** n, hi_cap)
+    hi = min(2**n, hi_cap)
     return sorted({int(round(b)) for b in np.logspace(np.log10(n + 1), np.log10(hi), n_points)})
 
 
 __all__ = [
-    "BASELINE_ESTIMATORS", "ESTIMATORS", "ETAS", "ETA_BUDGET", "ETA_BUDGETS",
-    "DEFAULT_VARIANT", "INTERACTION_FREE_FACTOR", "TABULAR_VFS",
-    "PreparedVF", "prepare_vf", "make_estimator", "make_game", "interaction_free_oddshap",
-    "sfv", "safe_mse", "warm_dispatch", "log_budgets",
-    "load_oddshap", "variant_label",
+    "BASELINE_ESTIMATORS",
+    "ESTIMATORS",
+    "ETAS",
+    "ETA_BUDGET",
+    "ETA_BUDGETS",
+    "DEFAULT_VARIANT",
+    "INTERACTION_FREE_FACTOR",
+    "TABULAR_VFS",
+    "PreparedVF",
+    "prepare_vf",
+    "make_estimator",
+    "make_game",
+    "interaction_free_oddshap",
+    "sfv",
+    "safe_mse",
+    "warm_dispatch",
+    "log_budgets",
+    "load_oddshap",
+    "variant_label",
 ]

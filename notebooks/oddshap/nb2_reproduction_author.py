@@ -39,13 +39,19 @@ from core.constants import ESTIMATORS, GPU_VF_NAMES, TABULAR_VF_NAMES
 VARIANT = os.environ.get("ODDSHAP_VARIANT", "v560_improved")
 TAB_VFS, GPU_VFS = TABULAR_VF_NAMES, GPU_VF_NAMES
 BANNER_TAB = R.environment_banner(VARIANT, gt="exact interventional TreeSHAP")
-BANNER_GPU = R.environment_banner(VARIANT, gt="exact Shapley (2^d enumeration)",
-                                  vf_family="deep model (ViT16 / DistilBERT), baseline imputation")
+BANNER_GPU = R.environment_banner(
+    VARIANT,
+    gt="exact Shapley (2^d enumeration)",
+    vf_family="deep model (ViT16 / DistilBERT), baseline imputation",
+)
 print(R.experiment_setup(VARIANT))
 _missing = [vf for vf in TAB_VFS + GPU_VFS if not R.has(f"table1_{vf}_{VARIANT}.csv")]
-print("  Data completeness   :",
-      "all value functions present" if not _missing
-      else f"MISSING {_missing} — run the cluster scripts to fill")
+print(
+    "  Data completeness   :",
+    "all value functions present"
+    if not _missing
+    else f"MISSING {_missing} — run the cluster scripts to fill",
+)
 
 # %% [markdown]
 # ## Table 1 — average rank (headline result)
@@ -61,12 +67,19 @@ if avg_rank:
     for e in ordered:
         print(f"  {e:<15} {avg_rank[e]:.2f}")
     fig, ax = plt.subplots(figsize=(7, 3.3))
-    colors = [R.ODDSHAP_COLOR if e == "OddSHAP" else R.OKABE_ITO["sky"] for e in ordered] \
-        if hasattr(R, "OKABE_ITO") else [R.estimator_style(e)["color"] for e in ordered]
+    colors = (
+        [R.ODDSHAP_COLOR if e == "OddSHAP" else R.OKABE_ITO["sky"] for e in ordered]
+        if hasattr(R, "OKABE_ITO")
+        else [R.estimator_style(e)["color"] for e in ordered]
+    )
     ax.barh(ordered, [avg_rank[e] for e in ordered], color=colors, edgecolor="black", lw=0.4)
-    ax.invert_yaxis(); ax.set_xlabel("average rank (1 = best)")
-    ax.set_title(R.fig_title("Table 1 — average rank", "all VFs", VARIANT, f"{len(used)} value functions"))
-    R.add_banner(fig, BANNER_TAB); plt.show()
+    ax.invert_yaxis()
+    ax.set_xlabel("average rank (1 = best)")
+    ax.set_title(
+        R.fig_title("Table 1 — average rank", "all VFs", VARIANT, f"{len(used)} value functions")
+    )
+    R.add_banner(fig, BANNER_TAB)
+    plt.show()
 
 # %% [markdown]
 # ## Table 3 — summary statistics (median, mean, **std**, Q1, Q3)
@@ -79,9 +92,12 @@ if avg_rank:
 # %%
 tbl = R.table3_dataframe(TAB_VFS + GPU_VFS, VARIANT)
 try:
-    display(tbl.style.set_caption(
-        f"Table 3 — summary statistics of Shapley MSE (median / mean / std / Q1 / Q3) · "
-        f"{R.VARIANT_LABEL[VARIANT]}"))
+    display(
+        tbl.style.set_caption(
+            f"Table 3 — summary statistics of Shapley MSE (median / mean / std / Q1 / Q3) · "
+            f"{R.VARIANT_LABEL[VARIANT]}"
+        )
+    )
 except (NameError, AttributeError):
     print(tbl)
 
@@ -114,11 +130,11 @@ except (NameError, AttributeError):
 # %%
 import matplotlib.image as mpimg
 
-for vf in TAB_VFS + GPU_VFS:                       # all 8 value functions
+for vf in TAB_VFS + GPU_VFS:  # all 8 value functions
     ours = R.load_fig2(vf, VARIANT)
     paper = R.load_paper_fig2(vf)
     png = R.paper_figure_path(vf, "fig2")
-    band = R.load_paper_oddshap_band(vf)           # digitised paper OddSHAP band, if available
+    band = R.load_paper_oddshap_band(vf)  # digitised paper OddSHAP band, if available
     if not ours:
         continue
     is_gpu = vf in GPU_VFS
@@ -128,7 +144,8 @@ for vf in TAB_VFS + GPU_VFS:                       # all 8 value functions
     # so this single strip labels both panels 1 and 2.
     fig = plt.figure(figsize=(15, 4.8))
     gs = fig.add_gridspec(2, 3, height_ratios=[1, 7], hspace=0.42)
-    axl = fig.add_subplot(gs[0, :]); axl.axis("off")
+    axl = fig.add_subplot(gs[0, :])
+    axl.axis("off")
     _leg = R.paper_legend_path()
     if _leg is not None:
         axl.imshow(mpimg.imread(str(_leg)))
@@ -146,26 +163,39 @@ for vf in TAB_VFS + GPU_VFS:                       # all 8 value functions
             continue
         xs = [b for b, _ in pts]
         med = np.array([v[0] for _, v in pts])
-        q1 = np.array([v[1] for _, v in pts]); q3 = np.array([v[2] for _, v in pts])
+        q1 = np.array([v[1] for _, v in pts])
+        q3 = np.array([v[2] for _, v in pts])
         st = R.paper_style(e)
         ax.plot(xs, np.clip(med, 1e-32, None), label=e, **st)
-        ax.fill_between(xs, np.clip(q1, 1e-32, None), np.clip(q3, 1e-32, None),
-                        color=st["color"], alpha=0.15)
+        ax.fill_between(
+            xs, np.clip(q1, 1e-32, None), np.clip(q3, 1e-32, None), color=st["color"], alpha=0.15
+        )
         finite_meds += [m for m in med if np.isfinite(m) and m <= R.DIVERGED_MSE]
         diverged += [(e, b, m) for b, m in zip(xs, med) if m > R.DIVERGED_MSE]
-    ax.set_xscale("log"); ax.set_yscale("log"); ax.grid(True, alpha=0.3)
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.grid(True, alpha=0.3)
     # focus the y-axis on the real estimates so the readable curves are not crushed by the
     # off-scale divergence; the diverged line still visibly shoots past the top edge.
     if finite_meds:
         ax.set_ylim(min(finite_meds) / 5, max(finite_meds) * 20)
     if diverged:
         w = max(diverged, key=lambda t: t[2])
-        ax.annotate(f"{w[0]} diverges off-scale at m={w[1]}\n(near-singular solve, MSE≈{w[2]:.0e})",
-                    xy=(0.03, 0.03), xycoords="axes fraction", va="bottom", fontsize=6.2,
-                    color=R.paper_style(w[0])["color"],
-                    bbox=dict(boxstyle="round,pad=0.2", fc="white", ec=R.paper_style(w[0])["color"], lw=0.6))
-    ax.set_xlabel("budget m"); ax.set_ylabel("MSE (median ± IQR band)")
-    ax.set_title("(1) ours (reproduction)"); ax.legend(fontsize=6, ncol=2)
+        ax.annotate(
+            f"{w[0]} diverges off-scale at m={w[1]}\n(near-singular solve, MSE≈{w[2]:.0e})",
+            xy=(0.03, 0.03),
+            xycoords="axes fraction",
+            va="bottom",
+            fontsize=6.2,
+            color=R.paper_style(w[0])["color"],
+            bbox=dict(
+                boxstyle="round,pad=0.2", fc="white", ec=R.paper_style(w[0])["color"], lw=0.6
+            ),
+        )
+    ax.set_xlabel("budget m")
+    ax.set_ylabel("MSE (median ± IQR band)")
+    ax.set_title("(1) ours (reproduction)")
+    ax.legend(fontsize=6, ncol=2)
 
     # (2) paper — ALWAYS the paper's own original figure PNG (never a redraw), so every row's
     # paper panel is the authentic figure with the paper's own IQR bands. Match panel (1)'s box
@@ -181,13 +211,19 @@ for vf in TAB_VFS + GPU_VFS:                       # all 8 value functions
             ax.plot([b for b, _ in pts], [v for _, v in pts], label=m, **R.paper_style(m))
         if band:
             bx = [b for b, _, _, _ in band]
-            bq1 = [q1 for _, _, q1, _ in band]; bq3 = [q3 for _, _, _, q3 in band]
+            bq1 = [q1 for _, _, q1, _ in band]
+            bq3 = [q3 for _, _, _, q3 in band]
             ax.fill_between(bx, bq1, bq3, color=R.PAPER_COLOR["OddSHAP"], alpha=0.18)
-        ax.set_xscale("log"); ax.set_yscale("log"); ax.grid(True, alpha=0.3)
-        ax.set_xlabel("budget m"); ax.set_ylabel("MSE (paper median)")
-        ax.set_title("(2) paper (Fig. 2 medians, redrawn)"); ax.legend(fontsize=6, ncol=2)
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        ax.grid(True, alpha=0.3)
+        ax.set_xlabel("budget m")
+        ax.set_ylabel("MSE (paper median)")
+        ax.set_title("(2) paper (Fig. 2 medians, redrawn)")
+        ax.legend(fontsize=6, ncol=2)
     else:
-        ax.axis("off"); ax.set_title("(2) paper — data not available")
+        ax.axis("off")
+        ax.set_title("(2) paper — data not available")
 
     # (3) OddSHAP: ours (median + IQR band) vs paper (median, + band if digitised)
     ax = axes[2]
@@ -195,25 +231,40 @@ for vf in TAB_VFS + GPU_VFS:                       # all 8 value functions
     if op:
         xs = [b for b, _ in op]
         med = np.clip([v[0] for _, v in op], 1e-32, None)
-        q1 = np.clip([v[1] for _, v in op], 1e-32, None); q3 = np.clip([v[2] for _, v in op], 1e-32, None)
+        q1 = np.clip([v[1] for _, v in op], 1e-32, None)
+        q3 = np.clip([v[2] for _, v in op], 1e-32, None)
         st = R.paper_style("OddSHAP")
         ax.plot(xs, med, label="OddSHAP (ours)", **st)
         ax.fill_between(xs, q1, q3, color=st["color"], alpha=0.18)
     if paper and "OddSHAP" in paper:
         pp = paper["OddSHAP"]
         pc = R.PAPER_COLOR["OddSHAP"]
-        ax.plot([b for b, _ in pp], [v for _, v in pp], label="OddSHAP (paper, median)",
-                color=pc, marker="x", linestyle="--", lw=1.8, ms=4)
+        ax.plot(
+            [b for b, _ in pp],
+            [v for _, v in pp],
+            label="OddSHAP (paper, median)",
+            color=pc,
+            marker="x",
+            linestyle="--",
+            lw=1.8,
+            ms=4,
+        )
         if band:  # digitised paper IQR band
             bx = [b for b, _, _, _ in band]
-            bq1 = [q1 for _, _, q1, _ in band]; bq3 = [q3 for _, _, _, q3 in band]
+            bq1 = [q1 for _, _, q1, _ in band]
+            bq3 = [q3 for _, _, _, q3 in band]
             ax.fill_between(bx, bq1, bq3, color=pc, alpha=0.12, hatch="///", edgecolor=pc, lw=0)
-    ax.set_xscale("log"); ax.set_yscale("log"); ax.grid(True, alpha=0.3)
-    ax.set_xlabel("budget m"); ax.set_ylabel("MSE (median ± IQR band)")
-    ax.set_title("(3) OddSHAP: ours vs paper"); ax.legend(fontsize=7)
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.grid(True, alpha=0.3)
+    ax.set_xlabel("budget m")
+    ax.set_ylabel("MSE (median ± IQR band)")
+    ax.set_title("(3) OddSHAP: ours vs paper")
+    ax.legend(fontsize=7)
 
     fig.suptitle(R.fig_title("Figure 2 — MSE vs budget", vf, VARIANT), y=1.02)
-    R.add_banner(fig, banner); plt.show()
+    R.add_banner(fig, banner)
+    plt.show()
 
 # %% [markdown]
 # ## Figure 4 & Figure 11 — interaction-sparsity (η) ablation
@@ -236,9 +287,9 @@ for vf in TAB_VFS + GPU_VFS:                       # all 8 value functions
 # %%
 import math
 
-_ETAS4 = [50, 10, 5, 2]                              # eta values (interaction sparsity)
-XPOS4 = list(range(5))                               # evenly-spaced categorical x positions
-VFS4 = [vf for vf in TAB_VFS + GPU_VFS if vf != "realestate"]   # Estate excluded, as in the paper
+_ETAS4 = [50, 10, 5, 2]  # eta values (interaction sparsity)
+XPOS4 = list(range(5))  # evenly-spaced categorical x positions
+VFS4 = [vf for vf in TAB_VFS + GPU_VFS if vf != "realestate"]  # Estate excluded, as in the paper
 
 
 def _fig4_xlabels(budget):
@@ -247,7 +298,9 @@ def _fig4_xlabels(budget):
 
 
 for budget, label in [(10_000, "Figure 4"), (5_000, "Figure 11a"), (20_000, "Figure 11c")]:
-    paper4 = R.load_paper_fig4(VFS4) if budget == 10_000 else None   # paper panel only for Fig 4 (m=10000)
+    paper4 = (
+        R.load_paper_fig4(VFS4) if budget == 10_000 else None
+    )  # paper panel only for Fig 4 (m=10000)
     ncol = 2 if paper4 else 1
     fig, axes = plt.subplots(1, ncol, figsize=(5.7 * ncol, 4.6), squeeze=False)
     xlab = _fig4_xlabels(budget)
@@ -257,18 +310,22 @@ for budget, label in [(10_000, "Figure 4"), (5_000, "Figure 11a"), (20_000, "Fig
     ax = axes[0][0]
     any_pts = False
     for vf in VFS4:
-        pts = R.load_eta(vf, VARIANT, budget)        # [(n_int, ratio_med, ratio_q1, ratio_q3)] for eta 50,10,5,2
+        pts = R.load_eta(
+            vf, VARIANT, budget
+        )  # [(n_int, ratio_med, ratio_q1, ratio_q3)] for eta 50,10,5,2
         if not pts:
             continue
         any_pts = True
-        med = [1.0] + [p[1] for p in pts]            # position 0 = interaction-free baseline (ratio = 1)
-        q1 = [1.0] + [p[2] for p in pts]; q3 = [1.0] + [p[3] for p in pts]
-        st = R.paper_vf_style(vf)                    # colours aligned to the paper's Fig. 4 legend
+        med = [1.0] + [p[1] for p in pts]  # position 0 = interaction-free baseline (ratio = 1)
+        q1 = [1.0] + [p[2] for p in pts]
+        q3 = [1.0] + [p[3] for p in pts]
+        st = R.paper_vf_style(vf)  # colours aligned to the paper's Fig. 4 legend
         ax.plot(XPOS4, med, label=R.vf_display(vf), **st)
         ax.fill_between(XPOS4, q1, q3, color=st["color"], alpha=0.15)
         allv += [v for v in med + q1 + q3 if v > 0]
     if not any_pts:
-        plt.close(fig); continue
+        plt.close(fig)
+        continue
 
     # (2) paper — the paper's Figure 4 redrawn from the digitised curves onto identical axes
     panels = [(ax, f"(1) ours — {label}")]
@@ -278,26 +335,35 @@ for budget, label in [(10_000, "Figure 4"), (5_000, "Figure 11a"), (20_000, "Fig
             curve = paper4.get(vf)
             if not curve:
                 continue
-            med = [c[2] for c in curve]; q1 = [c[3] for c in curve]; q3 = [c[4] for c in curve]
-            med[0] = q1[0] = q3[0] = 1.0             # snap baseline to exactly 1.0
+            med = [c[2] for c in curve]
+            q1 = [c[3] for c in curve]
+            q3 = [c[4] for c in curve]
+            med[0] = q1[0] = q3[0] = 1.0  # snap baseline to exactly 1.0
             st = R.paper_vf_style(vf)
             axp.plot(XPOS4, med, label=R.vf_display(vf), **st)
             axp.fill_between(XPOS4, q1, q3, color=st["color"], alpha=0.15)
             allv += [v for v in med + q1 + q3 if v > 0]
         panels.append((axp, "(2) paper (Fig. 4, redrawn from the paper's curves)"))
 
-    ylo, yhi = min(allv) / 2, max(allv) * 2          # shared y-limits so the two panels align exactly
+    ylo, yhi = min(allv) / 2, max(allv) * 2  # shared y-limits so the two panels align exactly
     for a, ttl in panels:
-        a.set_yscale("log"); a.set_ylim(ylo, yhi)
-        a.set_xticks(XPOS4); a.set_xticklabels(xlab, fontsize=7)
-        a.axhline(1.0, color="black", lw=0.9)        # interaction-free baseline reference
+        a.set_yscale("log")
+        a.set_ylim(ylo, yhi)
+        a.set_xticks(XPOS4)
+        a.set_xticklabels(xlab, fontsize=7)
+        a.axhline(1.0, color="black", lw=0.9)  # interaction-free baseline reference
         a.grid(True, alpha=0.3)
         a.set_xlabel("Number of Odd Interactions")
         a.set_ylabel("MSE Ratio (Median $\\pm$ IQR Band)")
-        a.set_title(ttl); a.legend(fontsize=6, ncol=2)
+        a.set_title(ttl)
+        a.legend(fontsize=6, ncol=2)
 
-    fig.suptitle(R.fig_title(f"{label} — $\\eta$ ablation", f"{len(VFS4)} VFs", VARIANT, f"m={budget:,}"), y=1.02)
-    R.add_banner(fig, BANNER_TAB); plt.show()
+    fig.suptitle(
+        R.fig_title(f"{label} — $\\eta$ ablation", f"{len(VFS4)} VFs", VARIANT, f"m={budget:,}"),
+        y=1.02,
+    )
+    R.add_banner(fig, BANNER_TAB)
+    plt.show()
 
 # %% [markdown]
 # ## Figure 5 — runtime vs budget
@@ -315,11 +381,15 @@ for vf in ["crime", "cancer"]:
         pts = rt.get(e, [])
         if pts:
             ax.plot([p[0] for p in pts], [p[1] for p in pts], label=e, **R.estimator_style(e))
-    ax.set_xscale("log"); ax.set_yscale("log"); ax.grid(True, alpha=0.3)
-    ax.set_xlabel("budget m"); ax.set_ylabel("runtime (s, median)")
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.grid(True, alpha=0.3)
+    ax.set_xlabel("budget m")
+    ax.set_ylabel("runtime (s, median)")
     ax.set_title(R.fig_title("Figure 5 — runtime vs budget", vf, VARIANT))
     ax.legend(fontsize=7, ncol=2)
-    R.add_banner(fig, BANNER_TAB); plt.show()
+    R.add_banner(fig, BANNER_TAB)
+    plt.show()
 
 # %% [markdown]
 # ## GPU value functions — ViT16, DistilBERT

@@ -36,12 +36,25 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from core.constants import (
-    ESTIMATORS, ETA_BUDGETS, ETAS, SCHEMA_ETA, SCHEMA_FIG2, SCHEMA_RUNTIME, SCHEMA_TABLE1,
-    TABULAR_VF_NAMES, VARIANT_CHOICES,
+    ESTIMATORS,
+    ETA_BUDGETS,
+    ETAS,
+    SCHEMA_ETA,
+    SCHEMA_FIG2,
+    SCHEMA_RUNTIME,
+    SCHEMA_TABLE1,
+    TABULAR_VF_NAMES,
+    VARIANT_CHOICES,
 )
 from core.harness import (
-    TABULAR_VFS, interaction_free_oddshap, log_budgets, make_estimator, make_game,
-    prepare_vf, sfv, warm_dispatch,
+    TABULAR_VFS,
+    interaction_free_oddshap,
+    log_budgets,
+    make_estimator,
+    make_game,
+    prepare_vf,
+    sfv,
+    warm_dispatch,
 )
 
 
@@ -70,9 +83,11 @@ class CachedGame:
         for i, row in enumerate(c):
             v = self._cache.get(row.tobytes())
             if v is None:
-                miss_rows.append(row); miss_idx.append(i)
+                miss_rows.append(row)
+                miss_idx.append(i)
             else:
-                out[i] = v; self.hits += 1
+                out[i] = v
+                self.hits += 1
         if miss_rows:
             vals = np.asarray(self._game(np.asarray(miss_rows)), dtype=float)
             for j, i in enumerate(miss_idx):
@@ -97,6 +112,7 @@ def _write(path: Path, header, rows):
 # --- per-instance workers (picklable: receive arrays, not the tree explainer) --- #
 def _mse_row(target, truth, model, bg, n, is_clf, budget, variant):
     from core.harness import make_game  # local import for the loky worker
+
     game = CachedGame(make_game(model, bg, target, is_classifier=is_clf))  # cross-estimator reuse
     out = {}
     for est in ESTIMATORS:
@@ -111,19 +127,36 @@ def _mse_row(target, truth, model, bg, n, is_clf, budget, variant):
 def run_table1(vf, truths, n_instances, jobs, variant, out: Path):
     budget = max(vf.n + 1, 100 * vf.n)
     per = Parallel(n_jobs=jobs, backend="loky")(
-        delayed(_mse_row)(vf.x_test[i], truths[i], vf.model, vf.background, vf.n,
-                          vf.is_classifier, budget, variant)
-        for i in range(len(truths)))
+        delayed(_mse_row)(
+            vf.x_test[i],
+            truths[i],
+            vf.model,
+            vf.background,
+            vf.n,
+            vf.is_classifier,
+            budget,
+            variant,
+        )
+        for i in range(len(truths))
+    )
     rows = []
     for est in ESTIMATORS:
         vals = np.array([p[est] for p in per], dtype=float)
         finite = vals[np.isfinite(vals)]
-        rows.append((vf.name, est, variant, len(truths), budget,
-                     float(np.median(finite)) if finite.size else float("inf"),
-                     float(np.quantile(finite, 0.25)) if finite.size else float("inf"),
-                     float(np.quantile(finite, 0.75)) if finite.size else float("inf"),
-                     float(np.mean(finite)) if finite.size else float("inf"),
-                     float(np.std(finite)) if finite.size else float("inf")))
+        rows.append(
+            (
+                vf.name,
+                est,
+                variant,
+                len(truths),
+                budget,
+                float(np.median(finite)) if finite.size else float("inf"),
+                float(np.quantile(finite, 0.25)) if finite.size else float("inf"),
+                float(np.quantile(finite, 0.75)) if finite.size else float("inf"),
+                float(np.mean(finite)) if finite.size else float("inf"),
+                float(np.std(finite)) if finite.size else float("inf"),
+            )
+        )
     _write(out / f"table1_{vf.name}_{variant}.csv", SCHEMA_TABLE1, rows)
 
 
@@ -131,6 +164,7 @@ def _fig2_instance(target, truth, model, bg, n, is_clf, budgets, variant):
     """All budgets x estimators for one instance, sharing one cached game so a coalition
     sampled at several budgets is evaluated once. Returns {(budget, est): mse}."""
     from core.harness import make_game  # local import for the loky worker
+
     game = CachedGame(make_game(model, bg, target, is_classifier=is_clf))
     res = {}
     for b in budgets:
@@ -147,21 +181,43 @@ def _fig2_instance(target, truth, model, bg, n, is_clf, budgets, variant):
 def run_fig2(vf, truths, jobs, variant, out: Path):
     budgets = log_budgets(vf.n)
     per = Parallel(n_jobs=jobs, backend="loky")(
-        delayed(_fig2_instance)(vf.x_test[i], truths[i], vf.model, vf.background, vf.n,
-                                vf.is_classifier, budgets, variant)
-        for i in range(len(truths)))
-    hits = sum(p["_cache"][0] for p in per); miss = sum(p["_cache"][1] for p in per)
-    print(f"  fig2 cache: {hits}/{hits + miss} coalition evals served from cache "
-          f"({100 * hits / max(1, hits + miss):.0f}% hit)", flush=True)
+        delayed(_fig2_instance)(
+            vf.x_test[i],
+            truths[i],
+            vf.model,
+            vf.background,
+            vf.n,
+            vf.is_classifier,
+            budgets,
+            variant,
+        )
+        for i in range(len(truths))
+    )
+    hits = sum(p["_cache"][0] for p in per)
+    miss = sum(p["_cache"][1] for p in per)
+    print(
+        f"  fig2 cache: {hits}/{hits + miss} coalition evals served from cache "
+        f"({100 * hits / max(1, hits + miss):.0f}% hit)",
+        flush=True,
+    )
     rows = []
     for b in budgets:
         for est in ESTIMATORS:
             vals = np.array([p[(b, est)] for p in per], dtype=float)
             finite = vals[np.isfinite(vals)]
             if finite.size:
-                rows.append((vf.name, est, variant, b, len(truths),
-                             float(np.median(finite)), float(np.quantile(finite, 0.25)),
-                             float(np.quantile(finite, 0.75))))
+                rows.append(
+                    (
+                        vf.name,
+                        est,
+                        variant,
+                        b,
+                        len(truths),
+                        float(np.median(finite)),
+                        float(np.quantile(finite, 0.25)),
+                        float(np.quantile(finite, 0.75)),
+                    )
+                )
     _write(out / f"fig2_{vf.name}_{variant}.csv", SCHEMA_FIG2, rows)
 
 
@@ -169,6 +225,7 @@ def _eta_instance(target, truth, model, bg, n, is_clf, budgets, variant):
     """All eta budgets x factors for one instance, sharing one cached game.
     Returns {(budget, e|'base'): mse}."""
     from core.harness import interaction_free_oddshap, load_oddshap, make_game
+
     OddSHAP = load_oddshap(variant)
     game = CachedGame(make_game(model, bg, target, is_classifier=is_clf))
     res = {}
@@ -191,24 +248,50 @@ def _eta_instance(target, truth, model, bg, n, is_clf, budgets, variant):
 def run_eta(vf, truths, jobs, variant, out: Path):
     budgets = list(ETA_BUDGETS)
     per = Parallel(n_jobs=jobs, backend="loky")(
-        delayed(_eta_instance)(vf.x_test[i], truths[i], vf.model, vf.background, vf.n,
-                               vf.is_classifier, budgets, variant)
-        for i in range(len(truths)))
-    hits = sum(p["_cache"][0] for p in per); miss = sum(p["_cache"][1] for p in per)
-    print(f"  eta cache: {hits}/{hits + miss} coalition evals served from cache "
-          f"({100 * hits / max(1, hits + miss):.0f}% hit)", flush=True)
+        delayed(_eta_instance)(
+            vf.x_test[i],
+            truths[i],
+            vf.model,
+            vf.background,
+            vf.n,
+            vf.is_classifier,
+            budgets,
+            variant,
+        )
+        for i in range(len(truths))
+    )
+    hits = sum(p["_cache"][0] for p in per)
+    miss = sum(p["_cache"][1] for p in per)
+    print(
+        f"  eta cache: {hits}/{hits + miss} coalition evals served from cache "
+        f"({100 * hits / max(1, hits + miss):.0f}% hit)",
+        flush=True,
+    )
     rows = []
     for budget in budgets:
         base_med = float(np.nanmedian([p[(budget, "base")] for p in per]))
         for e in ETAS:
             vals = np.array([p[(budget, e)] for p in per], dtype=float)
             med = float(np.nanmedian(vals))
-            q1 = float(np.nanquantile(vals, 0.25)); q3 = float(np.nanquantile(vals, 0.75))
+            q1 = float(np.nanquantile(vals, 0.25))
+            q3 = float(np.nanquantile(vals, 0.75))
             b = base_med if base_med else float("nan")
             # MSE ratio vs the interaction-free baseline (median), with an IQR band from the
             # eta-MSE spread over instances normalised by the same baseline median.
-            rows.append((vf.name, variant, budget, e, int(np.ceil(budget / e)), len(truths),
-                         med, med / b, q1 / b, q3 / b))
+            rows.append(
+                (
+                    vf.name,
+                    variant,
+                    budget,
+                    e,
+                    int(np.ceil(budget / e)),
+                    len(truths),
+                    med,
+                    med / b,
+                    q1 / b,
+                    q3 / b,
+                )
+            )
         rows.append((vf.name, variant, budget, "base", 0, len(truths), base_med, 1.0, 1.0, 1.0))
     _write(out / f"eta_{vf.name}_{variant}.csv", SCHEMA_ETA, rows)
 
@@ -238,8 +321,12 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--vf", required=True, choices=TABULAR_VF_NAMES)
     ap.add_argument("--variant", default="v522_merged", choices=VARIANT_CHOICES)
-    ap.add_argument("--experiments", nargs="+", default=["table1", "fig2", "eta", "runtime"],
-                    choices=["table1", "fig2", "eta", "runtime"])
+    ap.add_argument(
+        "--experiments",
+        nargs="+",
+        default=["table1", "fig2", "eta", "runtime"],
+        choices=["table1", "fig2", "eta", "runtime"],
+    )
     ap.add_argument("--instances", type=int, default=30)
     ap.add_argument("--jobs", type=int, default=-1)
     ap.add_argument("--out", default="notebooks/oddshap/data")
@@ -252,7 +339,10 @@ def main() -> None:
     out = Path(args.out)
     n_use = min(args.instances, vf.x_test.shape[0])
     truths = [vf.ground_truth(vf.x_test[i]) for i in range(n_use)]  # serial, once
-    print(f"{args.vf} d={vf.n} variant={args.variant} N={n_use} experiments={args.experiments}", flush=True)
+    print(
+        f"{args.vf} d={vf.n} variant={args.variant} N={n_use} experiments={args.experiments}",
+        flush=True,
+    )
 
     if "table1" in args.experiments:
         run_table1(vf, truths, n_use, args.jobs, args.variant, out)

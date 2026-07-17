@@ -22,7 +22,12 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from core.constants import (
-    ESTIMATORS as EST, ETAS, SCHEMA_ETA, SCHEMA_FIG2, SCHEMA_RUNTIME, SCHEMA_TABLE1,
+    ESTIMATORS as EST,
+    ETAS,
+    SCHEMA_ETA,
+    SCHEMA_FIG2,
+    SCHEMA_RUNTIME,
+    SCHEMA_TABLE1,
 )
 
 
@@ -43,7 +48,7 @@ def main() -> None:
     args = ap.parse_args()
     out = Path(args.out)
 
-    t1 = defaultdict(list)                       # est -> [mse]
+    t1 = defaultdict(list)  # est -> [mse]
     f2 = defaultdict(lambda: defaultdict(list))  # est -> budget -> [mse]
     rt = defaultdict(lambda: defaultdict(list))  # est -> budget -> [runtime_s]
     et = defaultdict(lambda: defaultdict(list))  # key(eta|base) -> budget -> [mse]
@@ -57,7 +62,8 @@ def main() -> None:
                     continue
                 if p[0] == "PARTIAL_T1":
                     _, _, est, _i, budget, mse = p[:6]
-                    t1[est].append(float(mse)); t1_budget = int(budget)
+                    t1[est].append(float(mse))
+                    t1_budget = int(budget)
                 elif p[0] == "PARTIAL_F2":
                     _, _, est, _i, budget, mse = p[:6]
                     f2[est][int(budget)].append(float(mse))
@@ -73,9 +79,20 @@ def main() -> None:
     for est in EST:
         v = np.array(t1.get(est, []), dtype=float)
         if v.size:
-            rows.append((args.vf, est, args.variant, v.size, t1_budget,
-                         float(np.median(v)), float(np.quantile(v, .25)), float(np.quantile(v, .75)),
-                         float(np.mean(v)), float(np.std(v))))
+            rows.append(
+                (
+                    args.vf,
+                    est,
+                    args.variant,
+                    v.size,
+                    t1_budget,
+                    float(np.median(v)),
+                    float(np.quantile(v, 0.25)),
+                    float(np.quantile(v, 0.75)),
+                    float(np.mean(v)),
+                    float(np.std(v)),
+                )
+            )
     if rows:
         _write(out / f"table1_{args.vf}_{args.variant}.csv", SCHEMA_TABLE1, rows)
 
@@ -84,8 +101,18 @@ def main() -> None:
     for est in EST:
         for b, vals in sorted(f2.get(est, {}).items()):
             v = np.array(vals, dtype=float)
-            rows.append((args.vf, est, args.variant, b, v.size,
-                         float(np.median(v)), float(np.quantile(v, .25)), float(np.quantile(v, .75))))
+            rows.append(
+                (
+                    args.vf,
+                    est,
+                    args.variant,
+                    b,
+                    v.size,
+                    float(np.median(v)),
+                    float(np.quantile(v, 0.25)),
+                    float(np.quantile(v, 0.75)),
+                )
+            )
     if rows:
         _write(out / f"fig2_{args.vf}_{args.variant}.csv", SCHEMA_FIG2, rows)
 
@@ -107,12 +134,37 @@ def main() -> None:
             vals = et.get(str(e), {}).get(budget, [])
             if vals:
                 med = float(np.nanmedian(vals))
-                q1 = float(np.nanquantile(vals, 0.25)); q3 = float(np.nanquantile(vals, 0.75))
-                rows.append((args.vf, args.variant, budget, e, int(np.ceil(budget / e)), len(vals),
-                             med, med / b, q1 / b, q3 / b))
+                q1 = float(np.nanquantile(vals, 0.25))
+                q3 = float(np.nanquantile(vals, 0.75))
+                rows.append(
+                    (
+                        args.vf,
+                        args.variant,
+                        budget,
+                        e,
+                        int(np.ceil(budget / e)),
+                        len(vals),
+                        med,
+                        med / b,
+                        q1 / b,
+                        q3 / b,
+                    )
+                )
         if et.get("base", {}).get(budget):
-            rows.append((args.vf, args.variant, budget, "base", 0, len(et["base"][budget]),
-                         base_med, 1.0, 1.0, 1.0))
+            rows.append(
+                (
+                    args.vf,
+                    args.variant,
+                    budget,
+                    "base",
+                    0,
+                    len(et["base"][budget]),
+                    base_med,
+                    1.0,
+                    1.0,
+                    1.0,
+                )
+            )
     if rows:
         _write(out / f"eta_{args.vf}_{args.variant}.csv", SCHEMA_ETA, rows)
 

@@ -42,8 +42,13 @@ def variant_delta(vf_name: str, n_instances: int):
                     sink.append(float(np.mean((sfv(iv, vf.n) - truth) ** 2)))
                 except (ValueError, RuntimeError):
                     sink.append(float("nan"))
-        rows.append((b, float(np.nanmedian(v522)) if v522 else float("nan"),
-                     float(np.nanmedian(v560)) if v560 else float("nan")))
+        rows.append(
+            (
+                b,
+                float(np.nanmedian(v522)) if v522 else float("nan"),
+                float(np.nanmedian(v560)) if v560 else float("nan"),
+            )
+        )
     return vf, rows
 
 
@@ -57,8 +62,11 @@ def main() -> None:
     print(f"{args.vf} d={vf.n}: v522 min budget = n*eta = {vf.n * 10}; v560 min budget = eta = 10")
     print(f"{'budget':>8} {'v522 (ours)':>14} {'v560 (author)':>14}  {'note':>18}")
     for b, a, c in rows:
-        note = "identical" if np.isfinite(a) and np.isfinite(c) and abs(a - c) <= 1e-9 * max(a, c, 1e-30) else (
-            "#560-only regime" if not np.isfinite(a) and np.isfinite(c) else "")
+        note = (
+            "identical"
+            if np.isfinite(a) and np.isfinite(c) and abs(a - c) <= 1e-9 * max(a, c, 1e-30)
+            else ("#560-only regime" if not np.isfinite(a) and np.isfinite(c) else "")
+        )
         astr = "REFUSED" if not np.isfinite(a) else f"{a:.3e}"
         print(f"{b:>8} {astr:>14} {c:>14.3e}  {note:>18}")
 
