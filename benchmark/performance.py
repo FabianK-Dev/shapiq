@@ -162,6 +162,10 @@ class GameSpec:
     factory: Any
 
 
+# The split and model are fixed across repeats; see make_ml_game.
+MODEL_SEED = 0
+
+
 def make_ml_game(dataset_name: str, seed: int):
     if dataset_name == "California":
         X, y = load_california_housing(to_numpy=True)
@@ -194,12 +198,17 @@ def make_ml_game(dataset_name: str, seed: int):
     else:
         raise ValueError(f"Unknown dataset: {dataset_name}")
 
-    X_train, X_test, y_train, _ = train_test_split(X, y, test_size=0.2, random_state=seed)
-    model = xgb.XGBRegressor(n_estimators=100, max_depth=4, random_state=seed, verbosity=0)
+    # The split and the model are pinned, and `seed` selects which held-out prediction to
+    # explain. Letting it vary the split and the model too would rebuild the game underneath
+    # every repeat -- a different tree has different Shapley values -- so the spread across
+    # repeats would mix estimator noise with model noise and could not be read as either. The
+    # papers hold the model fixed and repeat over predictions; this matches that.
+    X_train, X_test, y_train, _ = train_test_split(X, y, test_size=0.2, random_state=MODEL_SEED)
+    model = xgb.XGBRegressor(n_estimators=100, max_depth=4, random_state=MODEL_SEED, verbosity=0)
     model.fit(X_train, y_train)
 
     bg_mean = X_train.mean(axis=0)
-    x_instance = X_test[0]
+    x_instance = X_test[seed % len(X_test)]
 
     def game_fn(Z: np.ndarray) -> np.ndarray:
         X_masked = np.where(Z, x_instance[np.newaxis, :], bg_mean[np.newaxis, :])
@@ -876,7 +885,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--n", default="6,8,10", type=_parse_comma_int)
     parser.add_argument("--budgets", default="0.05,0.25,0.5,1.0", type=_parse_comma_float)
     parser.add_argument("--budget-mults", default=None, type=_parse_comma_float)
-    parser.add_argument("--seeds", default="0,42,1337", type=_parse_comma_int)
+    parser.add_argument(
+        "--seeds",
+        default="0,1,2",
+        type=_parse_comma_int,
+        help=(
+            "Repeats. For the ML games each value selects a held-out prediction to explain "
+            "(the model is fixed); for the SOUM games it draws the random game. It also seeds "
+            "the estimator, so a repeat is one prediction explained once."
+        ),
+    )
     parser.add_argument("--name", default=None)
     parser.add_argument("--output-root", default="benchmark/results", type=Path)
     parser.add_argument("--plot", action="store_true")
