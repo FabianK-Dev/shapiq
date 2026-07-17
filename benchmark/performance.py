@@ -498,6 +498,22 @@ def write_csv(results: list[CellResult], path: Path) -> None:
 # -----------------------------------------------------------------------------
 
 
+# Okabe-Ito: distinguishable under the common colour-vision deficiencies. Deliberately no
+# red/green pairing carries meaning on its own; marker and dash pattern repeat the encoding.
+OKABE_ITO: list[str] = [
+    "#0072B2",  # blue
+    "#E69F00",  # orange
+    "#009E73",  # bluish green
+    "#CC79A7",  # reddish purple
+    "#56B4E9",  # sky blue
+    "#D55E00",  # vermillion
+    "#F0E442",  # yellow
+    "#000000",  # black
+]
+_MARKERS: list[str] = ["o", "s", "^", "D", "v", "P", "X"]
+_DASHES: list[str] = ["-", "--", "-.", ":"]
+
+
 class PlotStyle:
     """Base strategy for plot styling. Defaults to generic visuals."""
 
@@ -508,8 +524,18 @@ class PlotStyle:
     use_medians: bool = True
 
     def get_line_kwargs(self, method_name: str, index: int) -> dict[str, Any]:
-        """Return styling attributes for the method's line."""
-        return {"linestyle": "-", "marker": "o", "linewidth": 1.5}
+        """Return styling attributes for the method's line.
+
+        Matplotlib's default cycle has ten colours, so with fifteen registered
+        approximators four pairs would share one, and every line would carry the same
+        marker and dash pattern. Cycle an eight-colour colour-blind-safe palette
+        (Okabe-Ito) against markers and dash patterns instead, so each method is
+        identifiable by shape and stroke and never by colour alone.
+        """
+        colour = OKABE_ITO[index % len(OKABE_ITO)]
+        marker = _MARKERS[(index // len(OKABE_ITO)) % len(_MARKERS)]
+        dashes = _DASHES[(index // len(OKABE_ITO)) % len(_DASHES)]
+        return {"color": colour, "linestyle": dashes, "marker": marker, "linewidth": 1.5}
 
     def get_fill_alpha(self) -> float:
         """Opacity of the standard deviation/quartile bands."""
