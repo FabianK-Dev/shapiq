@@ -8,8 +8,12 @@ paragraph somebody still has to write.
 ## Building
 
 ```bash
-latexmk -pdf main.tex      # or: pdflatex main && biber main && pdflatex main x2
+latexmk -pdf new-shapley-value-approximators.tex
 ```
+
+The document is named after itself rather than `main`, so the built PDF is meaningful once it
+leaves this folder. The PDF is not tracked — it churns on every edit and conflicts on every
+merge; build it.
 
 Needs a TeX distribution with `biber`. `cleanthesis.sty` is vendored here, so nothing has
 to be installed for the chair's look.
@@ -18,7 +22,7 @@ to be installed for the chair's look.
 
 | File | Section |
 |---|---|
-| `main.tex` | document skeleton — title, `\input`s, bibliography |
+| `new-shapley-value-approximators.tex` | document skeleton — title, `\input`s, bibliography |
 | `report-setup.tex` | packages, the chair's style, report metadata (**edit the author list here**) |
 | `content/01-introduction.tex` | 1. Abstract and introduction |
 | `content/02-benchmark.tex` | 2. Cross-method benchmark |

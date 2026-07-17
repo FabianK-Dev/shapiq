@@ -18,6 +18,28 @@ prose `TODO`.
 | 4 LeverageSHAP | config table TODO on purpose | teammate |
 | 5 PolySHAP | config table TODO on purpose | teammate |
 
+## Chapter 2 — revision 2
+
+The first draft was OddSHAP-oriented. The deliverable asks where *the new methods* win and lose
+"based on what the papers predict", so revision 2 fetched the other two papers and tested each
+method against **its own paper's** claim. All three hold:
+
+| Method | Its paper's claim | Result |
+|---|---|---|
+| PolySHAP | best at low dimension; higher order needs more budget | 2nd small (3.68), 6th large (5.94) |
+| LeverageSHAP | beats optimized KernelSHAP, *especially for large n* | leads it by +1.20 small, **+1.89** large |
+| OddSHAP | clearly outperforms at moderate-to-high dim once `m > eta*d` | 3rd small (4.51), **1st large (1.34)**, threshold at 12d |
+
+The three regimes are complementary rather than a ranking: PolySHAP's fixed order-$k$ support wins
+at low $d$ and is unaffordable at $d = 101$; OddSHAP's adaptive support is the mirror image;
+LeverageSHAP is the uniform one. Repeating under LeverageSHAP's own $\ell_2$ metric leaves both
+orderings intact, so they are not an artefact of MSE.
+
+**Citation bug found and fixed.** Chapter 4 cited `Witter.2025` for LeverageSHAP. That key is
+*Regression-adjusted Monte Carlo Estimators* — the RegressionMSR paper, which is a **baseline in
+our own benchmark**, not LeverageSHAP. LeverageSHAP is Musco & Witter, arXiv:2410.01917, which was
+in neither `references.bib`. Added as `Witter.2025a` and the three citations corrected.
+
 ## Chapter 2 — what it argues
 
 The chapter exists to defuse a trap in its own data. The aggregate rank over eleven games puts
@@ -46,7 +68,7 @@ reproduction.
   configuration table); `figures/bench-communities-n101.png`; `figures/bench-soum-n10.png`;
   `plan/project-overview.md`; `plan/task-packets/02-benchmark.md`.
 - **Verification run:** every one of the 20 numbers in the chapter re-derived from the CSV
-  independently of the text — all matched. `latexmk -pdf main.tex` exits 0; 18 pages; zero
+  independently of the text — all matched. `latexmk -pdf new-shapley-value-approximators.tex` exits 0; 18 pages; zero
   unresolved references. Spec checks against the packet's rejection list: no placeholder text, no
   bullet lists, aggregate rank not presented as the verdict, cross-check stated explicitly,
   cross-chapter MSE comparison explicitly ruled out.

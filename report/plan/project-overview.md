@@ -1,7 +1,7 @@
 # Project overview
 
 **Deliverable.** The Group G report for the LMU practical *New Shapley Value Approximators*.
-Source in `report/`, built with `latexmk -pdf main.tex`.
+Source in `report/`, built with `latexmk -pdf new-shapley-value-approximators.tex`.
 
 **Paper type.** Course report, not a thesis and not a conference paper. Five chapters, fixed by
 the group:

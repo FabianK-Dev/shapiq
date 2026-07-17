@@ -13,9 +13,14 @@
 *.synctex.gz
 *.lof
 *.lot
+*.xdv
+*.idx
+*.ilg
+*.ind
 tex.log
+build.log
 
-# The built document. Regenerate with `latexmk -pdf main.tex`; committing it would churn
-# on every edit and conflict on every merge. Note this is deliberately not `*.pdf`, which
-# would also swallow the logos in gfx/.
-main.pdf
+# The built document. Regenerate with `latexmk -pdf new-shapley-value-approximators.tex`;
+# committing it would churn on every edit and conflict on every merge. Note this is
+# deliberately not `*.pdf`, which would also swallow the logos in gfx/.
+new-shapley-value-approximators.pdf
