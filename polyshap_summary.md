@@ -10,7 +10,7 @@ KernelSHAP recovers Shapley values (SV) as the solution of a weighted least-squa
 - **Variance.** It is a Monte-Carlo estimator; the sampling variance decreases with budget. A higher `max_order` adds frontier terms (parameters `1 + C(n,1) + … + C(n,k)`), so for a *fixed* budget it carries **higher variance** and needs a **larger minimum budget**: a bias/variance / budget trade-off, not free accuracy.
 - **Paired sampling (Thm. 5.1).** Paired (antithetic) KernelSHAP returns *exactly* the paired 2-PolySHAP estimate; even-order interactions are captured "for free," giving the first strong theoretical justification for why antithetic sampling works so well.
 
-## `max_order` vs. the game's true interaction order *k*: the key knob
+## `max_order` vs. the game's true interaction order *k*
 - **`max_order < k` (underfit):** captures only part of the interaction structure, so larger error than optimal at a given budget. `max_order = 1` = plain KernelSHAP.
 - **`max_order = k` (match):** captures the game's structure; for a truly *k*-additive game it recovers the **exact** SV once the budget covers the frontier. This is the accuracy sweet spot, and a clear win over KernelSHAP at equal budget.
 - **`max_order > k` (overshoot):** the interactions are *already* captured, so there is **no accuracy gain**, only a larger minimum budget and higher variance, meaning **wasted budget, or worse error for the same budget.**

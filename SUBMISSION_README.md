@@ -38,11 +38,11 @@ Our LeverageSHAP reproduction contains four active notebooks mapping to the pape
     *   *Note: The LaTeX files inside `report/content/` (such as `04-leverageshap.tex`) were template skeletons and can be ignored; the official discussion and theoretical summaries are contained entirely within these two PDFs and the notebooks.*
 
 #### 🔹 PolySHAP
+*   **Summary Document**: polyshap_summary.md` (A summary of the paper's theory and our integration into shapiq).
 *   **Reproduction Notebooks**:
     *   `notebooks/polyshap/polyshap_reproduction.ipynb`: Side-by-side comparison of our integrated implementation against the original published ICLR 2026 panels (ResNet18 and ViT16).
     *   `notebooks/polyshap/polyshap_maxorder_vs_k.ipynb`: Evaluates performance when the chosen `max_order` under-fits, matches, or over-fits a game with a known interaction order.
     *   `notebooks/polyshap/polyshap_true_order.ipynb`: Evaluates the late, non-linear convergence of under-parameterized models near full enumeration.
-*   **Reproduction Engine**: `notebooks/polyshap/paper_repro.py`.
 
 #### 🔹 OddSHAP
 *   **Summary Document**: `oddshap_summary.md` (A detailed summary of the paper's theory and our implementation deviations).
