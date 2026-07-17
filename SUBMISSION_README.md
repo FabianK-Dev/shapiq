@@ -35,8 +35,7 @@ Our LeverageSHAP reproduction contains four active notebooks mapping to the pape
 *   **Summary & Discussion PDFs (located in the root directory)**:
     *   `leverageshap_summary.pdf` (**Theoretical Method Summary**):
         *   *Content*: Mathematical summary of row-centering, projection matrices for unconstrained WLS, closed-form leverage scores, and the $O(n \log n)$ convergence proof.
-    *   `leverageshap_discussion.pdf` (**Empirical Evaluation & Discussion**):
-        *   *Content*: Empirical evaluation validating five core paper hypotheses against LMU CIP benchmark results, alongside wall-clock runtime profiling of SVD-backed least-squares.
+    *   `leverageshap_discussion.pdf` (**Empirical Evaluation & Discussion** for **Task 4**)
 
 #### 🔹 PolySHAP
 *   **Summary Document**: `polyshap_summary.md` (A summary of the paper's theory and our integration into shapiq).
