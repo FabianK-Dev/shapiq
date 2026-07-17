@@ -1,2 +1,6 @@
 # Mark binary test data files so git does not convert line endings on Windows.
 tests/shapiq/data/models/*.bytes binary
+*.csv -diff
+*.ipynb -diff
+*.png -diff
+*.pdf -diff
