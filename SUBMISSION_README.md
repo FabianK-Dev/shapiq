@@ -18,26 +18,26 @@ Our LeverageSHAP reproduction contains four active notebooks mapping to the pape
 
 *   **Reproduction Notebooks (located in `notebooks/leverageshap/`)**:
     *   `notebooks/leverageshap/reproduce_leverageshap_ml.ipynb` (**XGBoost Models on Real Data**):
-        *   *Purpose*: Evaluates LeverageSHAP against standard and paired KernelSHAP on real ML datasets (IRIS, California, Diabetes, Breast Cancer, Communities).
-        *   *Key Findings*: At small dimensions ($n \le 10$), LeverageSHAP and KernelSHAP with pairing perform similarly. However, at larger dimensions ($n=30$ and $n=99$), LeverageSHAP consistently attains a lower median normalized $\ell_2$ error, matching the paper's claim that the advantage is especially pronounced when the budget $m$ is small relative to $2^n$.
+        *   *Purpose*: Evaluates LeverageSHAP against standard and paired KernelSHAP on real ML datasets ($n \le 99$).
+        *   *Key Findings*: Performance gains over paired KernelSHAP scale with dimension $n$ and are most substantial in the highly constrained budget regime.
     *   `notebooks/leverageshap/reproduce_leverageshap_soum.ipynb` (**Synthetic SOUM Benchmark**):
-        *   *Purpose*: Evaluates the estimator on synthetic Sum of Unanimity Models (SOUM) across player sizes $n \in \{4, 8, 10, 12, 20, 50\}$.
-        *   *Key Findings*: Illustrates an honest, minor deviation from the paper's small-$n$ results. On SOUM, LeverageSHAP does not consistently beat paired KernelSHAP. We hypothesize that synthetic unanimity games lack the low-order interaction structures typical of trained models, which might make the leverage-score bounds looser or align exceptionally well with KernelSHAP's subset-size heuristic.
+        *   *Purpose*: Evaluates the estimator on synthetic Sum of Unanimity Models (SOUM) across player sizes $n \le 50$.
+        *   *Key Findings*: Documents a minor, structured deviation where LeverageSHAP and paired KernelSHAP perform on par on highly structureless synthetic games.
     *   `notebooks/leverageshap/reproduce_figure9_sampling_architecture.ipynb` (**Leverage-Score Sampling vs. Uniform Weights**):
-        *   *Purpose*: Isolates the direct benefit of leverage-score sampling by comparing our custom implementation (Algorithm 2) against a uniform-weight KernelSHAP baseline across 25 configurations over 4 datasets.
-        *   *Key Findings*: Our custom implementation attains lower absolute errors and successfully resolves the "zig-zag" pattern seen in uniform weight configurations, which typically occurs when budgets run out mid-layer.
+        *   *Purpose*: Isolates the benefit of leverage-score sampling against a uniform-weight KernelSHAP baseline across 25 configurations.
+        *   *Key Findings*: Validates consistently lower errors and smoother convergence trends for leverage-score sampling.
     *   `notebooks/leverageshap/reproduce_LeverageSHAP_custom_vs_LeverageSHAPWo2c.ipynb` (**The 2c Threshold Analysis**):
-        *   *Purpose*: Studies the exact mechanism of the $2c$ boundary threshold by contrasting the full custom algorithm against a flat-budget variant and a version utilizing the standard `CoalitionSampler`.
-        *   *Key Findings*: Isolates the root cause of why the custom sampler outperforms standard stochastic selection. The $2c$ threshold allows deterministic, complete enumeration of low-cardinality size layers ($s=1$ and $s=2$). This reduces sampling variance on these crucial layers (which capture the model's main effects and pairwise interactions) to exactly zero.
+        *   *Purpose*: Isolates the mechanism of the $2c$ boundary threshold against a flat-budget variant and the standard `CoalitionSampler`.
+        *   *Key Findings*: Proves that the $2c$ threshold improves accuracy by allowing deterministic, zero-variance enumeration of low-cardinality layers ($s=1, 2$).
 
 *   **Summary & Discussion PDFs (located in the root directory)**:
     *   `leverageshap_summary.pdf` (**Theoretical Method Summary**):
-        *   *Content*: Concise mathematical summary of LeverageSHAP. Covers the reformulation of the unconstrained least-squares regression via row-centering and geometric projection, the analytical closed-form derivation of leverage scores ($\ell_s = \binom{n}{s}^{-1}$), the expected budget binary search, and the non-asymptotic $O(n \log n)$ convergence bounds (Theorem 1.1).
+        *   *Content*: Mathematical summary of row-centering, projection matrices for unconstrained WLS, closed-form leverage scores, and the $O(n \log n)$ convergence proof.
     *   `leverageshap_discussion.pdf` (**Empirical Evaluation & Discussion**):
-        *   *Content*: Detailed analysis of our benchmarking results. Validates the five paper-derived hypotheses (behavior under small budgets, $m \to 2^n$ convergence, large-$n$ scaling, and high-$\gamma$ plateaus). Includes wall-clock runtime profiling proving LeverageSHAP is $2\times$ to $3\times$ faster than Optimized KernelSHAP due to its SVD-backed solver and uniform size-weighting.
+        *   *Content*: Empirical evaluation validating five core paper hypotheses against LMU CIP benchmark results, alongside wall-clock runtime profiling of SVD-backed least-squares.
 
 #### 🔹 PolySHAP
-*   **Summary Document**: polyshap_summary.md` (A summary of the paper's theory and our integration into shapiq).
+*   **Summary Document**: `polyshap_summary.md` (A summary of the paper's theory and our integration into shapiq).
 *   **Reproduction Notebooks**:
     *   `notebooks/polyshap/polyshap_reproduction.ipynb`: Side-by-side comparison of our integrated implementation against the original published ICLR 2026 panels (ResNet18 and ViT16).
     *   `notebooks/polyshap/polyshap_maxorder_vs_k.ipynb`: Evaluates performance when the chosen `max_order` under-fits, matches, or over-fits a game with a known interaction order.
