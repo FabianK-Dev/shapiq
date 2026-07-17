@@ -118,9 +118,11 @@ of it. The claimed ordering reproduces, including the exception the paper predic
 
 \begin{table}[H]
     \centering
-    \caption[\oddshap{} rank per value function]{\oddshap{}'s rank on each value function, both
-        variants, from the committed CSVs. Rank~1 on 7 of 8; the sole exception is the smallest
-        $d$, where the paper also expects parity rather than a win.}
+    \caption[\oddshap{} rank per value function, and the reproduced Table~1]{\oddshap{}'s rank on
+        each value function (top), and the paper's Table~1 reproduced (bottom). Rank~1 on 7 of 8,
+        both variants; the exception is the smallest $d$, where the paper also expects parity
+        rather than a win. The average is over the six baselines listed, not the paper's larger
+        pool.}
     \label{tab:oddshap:ranks}
     \begin{tabular}{@{}lcccccccc@{}}
         \toprule
@@ -131,6 +133,10 @@ of it. The claimed ordering reproduces, including the exception the paper predic
         \midrule
         PR~\#522 & 1 & 1 & 1 & 1 & 1 & 1 & 1 & \textbf{2} \\
         PR~\#560 & 1 & 1 & 1 & 1 & 1 & 1 & 1 & \textbf{2} \\
+        \midrule[\heavyrulewidth]
+        \multicolumn{9}{@{}l}{\textit{Average rank over the eight value functions}} \\
+        & \oddshap{} & kADDSHAP & RegMSR & PermSamp & KernelSHAP & SVARM & MSR & \\
+        & \textbf{1.125} & 2.750 & 3.250 & 4.125 & 4.250 & 5.625 & 6.875 & \\
         \bottomrule
     \end{tabular}
 \end{table}
