@@ -358,12 +358,6 @@ def evaluate_cell(
 # Sweep
 # -----------------------------------------------------------------------------
 
-# Ceiling on the "full" coalition budget used by the ``--budgets`` (fraction of
-# 2**n) mode. For small games ``2**n`` is below this and behaviour is unchanged;
-# for large-n games (e.g. n=60) ``2**n`` is astronomically large and unreachable,
-# so budgets are taken as fractions of this cap instead of blowing up memory.
-MAX_SWEEP_BUDGET: int = 2**18  # 262144 game evaluations
-
 
 def run_sweep(
     method_names: list[str],
@@ -401,14 +395,10 @@ def run_sweep(
 
             ground_truth = truth_cache[key]
 
-            # ``--budgets`` are fractions of the full coalition space (2**n),
-            # capped at MAX_SWEEP_BUDGET so unreachable large-n games do not
-            # request an astronomically large (out-of-memory) sample.
-            full_budget = min(2**spec.n, MAX_SWEEP_BUDGET)
             budgets_to_run = (
                 [int(mult * spec.n) for mult in budget_mults]
                 if budget_mults is not None
-                else [max(2, int(pct * full_budget)) for pct in budget_pcts]
+                else [max(2, int(pct * 2**spec.n)) for pct in budget_pcts]
             )
 
             for budget in budgets_to_run:
@@ -565,15 +555,10 @@ class MuscoWitterStyle(PlotStyle):
         if is_lower_better:
             ax.set_yscale("log")
 
-        # Red line at 2^n with robust text placement. Skipped for large-n games
-        # where 2**n exceeds the swept budget range (see MAX_SWEEP_BUDGET) and
-        # would otherwise blow the x-axis out and squash the data.
-        if 2**game_n <= MAX_SWEEP_BUDGET:
-            ax.axvline(x=2**game_n, color="red", linestyle="-", linewidth=1.5)
-            trans = ax.get_xaxis_transform()
-            ax.text(
-                2**game_n * 1.1, 0.95, "$2^n$", color="red", va="top", fontsize=10, transform=trans
-            )
+        # Red line at 2^n with robust text placement
+        ax.axvline(x=2**game_n, color="red", linestyle="-", linewidth=1.5)
+        trans = ax.get_xaxis_transform()
+        ax.text(2**game_n * 1.1, 0.95, "$2^n$", color="red", va="top", fontsize=10, transform=trans)
 
         ax.set_xlabel("Sample Size ($m$)")
         ylabel = (
