@@ -24,3 +24,7 @@ build.log
 # committing it would churn on every edit and conflict on every merge. Note this is
 # deliberately not `*.pdf`, which would also swallow the logos in gfx/.
 new-shapley-value-approximators.pdf
+
+# Internal working notes: how the report was planned and tracked, not part of it. Kept on
+# disk, out of the deliverable.
+plan/
