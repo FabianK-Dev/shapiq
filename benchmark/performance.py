@@ -658,13 +658,20 @@ def _aggregate_by_method(
         budgets = sorted(budget_to_values)
         mid_vals, lower_vals, upper_vals = [], [], []
 
+        # Only the error metrics are drawn on a log axis, which cannot render zero, so only
+        # they are clipped away from it. Precision and KendallTau are drawn on a linear axis
+        # and must keep their true values: KendallTau is negative wherever a method ranks the
+        # features against the ground truth, and clipping would silently redraw that as no
+        # correlation at all.
+        clip_to_positive = metric in _LOWER_IS_BETTER
+
         for b in budgets:
             vs = budget_to_values[b]
             if use_medians:
-                vs_clipped = np.clip(vs, 1e-14, None)
-                mid_vals.append(float(np.median(vs_clipped)))
-                lower_vals.append(float(np.percentile(vs_clipped, 25)))
-                upper_vals.append(float(np.percentile(vs_clipped, 75)))
+                vs_arr = np.clip(vs, 1e-14, None) if clip_to_positive else np.asarray(vs, float)
+                mid_vals.append(float(np.median(vs_arr)))
+                lower_vals.append(float(np.percentile(vs_arr, 25)))
+                upper_vals.append(float(np.percentile(vs_arr, 75)))
             else:
                 mean = float(np.mean(vs))
                 std = float(statistics.pstdev(vs)) if len(vs) > 1 else 0.0
