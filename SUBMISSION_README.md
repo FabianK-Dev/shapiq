@@ -5,6 +5,8 @@ This repository contains our team's implementation, validation, reproduction stu
 > **⚠️ NOTE FOR REVIEWERS (Task 1 & Task 2)**
 > The core approximator implementations under `src/` and their respective unit tests under `tests/` correspond to Task 1 and Task 2. While they are merged into this branch to ensure the test suite compiles and runs correctly, **`src/` and `tests/` do not need to be reviewed additionally.**
 
+> For full transparency, you can view all individual code modifications and new files compared to the upstream `mmschlk/shapiq:main` branch directly on GitHub: https://github.com/mmschlk/shapiq/compare/main...FabianK-Dev:shapiq:main
+
 ---
 
 ## 📂 Repository Layout & Deliverables
@@ -62,7 +64,3 @@ We implemented a command-line benchmarking suite to evaluate the new approximato
 *   **Final Report**: The LaTeX source files for our final project report are located in the `report/` directory:
     *   Main file: `report/new-shapley-value-approximators.tex`
     *   Compiled figures: `report/figures/`
-
----
-
-Additionally, you can view all individual changes and new files compared to the main branch on `mmschlk/shapiq` here: https://github.com/mmschlk/shapiq/compare/main...FabianK-Dev:shapiq:main
