@@ -1,0 +1,103 @@
+% **************************************************
+% Setup — adapted from the chair's my-thesis-setup.tex
+%
+% Kept: the chair's cleanthesis look and its package wiring. cleanthesis loads biblatex,
+% hyperref, csquotes and listings itself, so they are configured through its options and
+% \hypersetup rather than loaded again here.
+%
+% Dropped: everything only a thesis needs — reviewer/supervisor fields, title-page
+% metadata, declaration, colophon.
+% **************************************************
+
+\PassOptionsToPackage{utf8}{inputenc}
+\usepackage{inputenc}
+
+% --------------------------
+% Report metadata — edit these
+% --------------------------
+\newcommand{\reportTitle}{New Shapley Value Approximators}
+\newcommand{\reportSubtitle}{Implementing LeverageSHAP, PolySHAP and OddSHAP in
+    \texttt{shapiq}}
+\newcommand{\reportSubject}{Praktikum Report}
+\newcommand{\reportAuthors}{Group G \quad---\quad TODO: names}
+\newcommand{\reportSupervisors}{TODO: supervisor names}
+\newcommand{\reportDate}{\today}
+
+\usepackage[english]{babel}
+
+% --------------------------
+% The chair's look. cleanthesis wires up biblatex, hyperref, csquotes and listings.
+% --------------------------
+\PassOptionsToPackage{%
+    figuresep=colon,%
+    hangfigurecaption=false,%
+    hangsection=true,%
+    hangsubsection=true,%
+    sansserif=false,%
+    configurelistings=true,%
+    colorize=full,%
+    colortheme=lmuaiml,%
+    configurebiblatex=true,%
+    bibsys=biber,%
+    bibfile=references,%
+    bibstyle=numeric-comp,%
+    bibsorting=nyt,%
+}{cleanthesis}
+\usepackage{cleanthesis}
+\ExecuteBibliographyOptions{backref=false, maxcitenames=2, maxbibnames=99, giveninits=true}
+
+% cleanthesis sets BCOR=25mm, a binding correction for a printed and bound thesis. This
+% report is read on screen and single-sided, so that 25mm is not swallowed by a binding --
+% it just pushes every page to the right. Drop it and recompute the type area.
+\KOMAoptions{BCOR=0mm, DIV=12}
+\recalctypearea
+
+% cleanthesis leaves the head empty and puts the running mark and the page number in the
+% footer. It redefines the footer for `plain` as well, but KOMA's own centred
+% \cfoot{\pagemark} survives there, so every chapter-opening page -- which KOMA sets in
+% `plain` -- printed its number twice, once from each. Use the same style throughout.
+\renewcommand*{\chapterpagestyle}{scrheadings}
+
+% --------------------------
+% Maths, figures, tables
+% --------------------------
+\usepackage{mathtools}
+\usepackage{amssymb}
+\usepackage{float}% for [H] placement
+\usepackage{subcaption}
+\usepackage{booktabs}
+\usepackage{tabularx}
+% placeholder prose while the report is being written; every \lipsum is a paragraph
+% somebody still has to write. Remove the package once they are all gone.
+\usepackage{lipsum}
+
+\hypersetup{%
+    pdftitle={\reportTitle},
+    pdfsubject={\reportSubject},
+    pdfauthor={\reportAuthors},
+}
+
+% --------------------------
+% Shorthands used across the report
+% --------------------------
+\newcommand{\shapiq}{\texttt{shapiq}}
+\newcommand{\oddshap}{\mbox{OddSHAP}}
+\newcommand{\leverageshap}{\mbox{LeverageSHAP}}
+\newcommand{\polyshap}{\mbox{PolySHAP}}
+
+% Every reproduction opens with one of these, so the reader sees what was run before
+% reading any number. The three papers do not share a value function, so a configuration
+% read after the results is a configuration read too late.
+% tabularx has to scan its whole body, so it cannot be split across this environment's
+% begin and end. A p-column gives the same wrapping without that restriction.
+\newenvironment{configtable}[1]{%
+    \begin{table}[H]
+    \centering
+    \caption{#1}
+    \begin{tabular}{@{}l p{0.72\textwidth}@{}}
+    \toprule
+}{%
+    \bottomrule
+    \end{tabular}
+    \end{table}
+}

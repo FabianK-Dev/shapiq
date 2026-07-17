@@ -1,0 +1,21 @@
+# LaTeX build artifacts
+*.aux
+*.bbl
+*.bbl-SAVE-ERROR
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.toc
+*.run.xml
+*.synctex.gz
+*.lof
+*.lot
+tex.log
+
+# The built document. Regenerate with `latexmk -pdf main.tex`; committing it would churn
+# on every edit and conflict on every merge. Note this is deliberately not `*.pdf`, which
+# would also swallow the logos in gfx/.
+main.pdf

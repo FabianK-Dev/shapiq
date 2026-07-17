@@ -1,0 +1,71 @@
+% **************************************************
+% New Shapley Value Approximators -- Group Report
+%
+% Built on the chair's AIML thesis template (cleanthesis.sty), reduced to a report: the
+% title page keeps the chair's layout but drops the reviewer block, and there is no
+% declaration, acknowledgement or colophon.
+% **************************************************
+\documentclass[%
+    paper=A4,
+    twoside=false,          % a report is read on screen, not bound
+    open=any,               % chapters may start on any page
+    parskip=full,
+    11pt,
+    headings=normal,
+    bibliography=totoc,
+    listof=totoc,
+    titlepage=on,
+    captions=tableabove,
+    chapterprefix=false,    % "1 Introduction", not "Chapter 1 / Introduction"
+    numbers=noenddot,
+    draft=false,
+]{scrreprt}%  cleanthesis is built on a chapter-based class
+
+\input{report-setup}
+
+\begin{document}
+
+\renewcaptionname{english}{\figurename}{Fig.}
+\renewcaptionname{english}{\tablename}{Tab.}
+
+% --------------------------
+% Front matter
+% --------------------------
+\pagenumbering{roman}
+\pagestyle{empty}               % no number on the title page
+\input{content/titlepage}
+
+\pagestyle{plain}               % page number only, no running head
+\currentpdfbookmark{\contentsname}{toc}
+\setcounter{tocdepth}{1}        % chapters and sections; the report is 5 chapters deep
+\tableofcontents
+\clearpage
+
+% --------------------------
+% Body
+% --------------------------
+\pagenumbering{arabic}
+\setcounter{page}{1}
+\pagestyle{scrheadings}         % cleanthesis puts the number in the running head; without
+                                % this, KOMA also prints one in the footer and every page
+                                % carries it twice
+
+\input{content/01-introduction}
+\input{content/02-benchmark}
+\input{content/03-oddshap}
+\input{content/04-leverageshap}
+\input{content/05-polyshap}
+
+% --------------------------
+% Back matter
+% --------------------------
+{%
+\setstretch{1.1}
+\renewcommand{\bibfont}{\normalfont\small}
+\setlength{\biblabelsep}{0pt}
+\setlength{\bibitemsep}{0.5\baselineskip plus 0.5\baselineskip}
+\emergencystretch=1em
+\printbibliography
+}
+
+\end{document}

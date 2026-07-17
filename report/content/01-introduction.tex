@@ -1,0 +1,51 @@
+% ==================================================
+% 1. Abstract and introduction
+%
+% Deliberately no numbered subsections: cleanthesis section headings are tall, and an
+% introduction this short does not need a table of contents of its own. Paragraph breaks
+% carry the structure instead.
+% ==================================================
+\chapter{Abstract and Introduction}
+\label{sec:introduction}
+
+\section*{Abstract}
+
+% TODO: ~150 words, written last. In order:
+%   - what was added to shapiq (three approximators);
+%   - that each paper's headline claim was reproduced from the shapiq implementation --
+%     say which reproduced and which did not;
+%   - that all three were then compared against the existing shapiq approximators on a
+%     shared testbed;
+%   - the one or two findings a reader should leave with.
+\lipsum[1][1-4]
+
+% --------------------------------------------------
+% The introduction runs as continuous prose. Roughly one paragraph per block below.
+% --------------------------------------------------
+
+\paragraph{What this report is.}
+% TODO: the task -- implement three recent SV approximators in shapiq, reproduce each
+% paper, benchmark them against what shapiq already has. Name them: OddSHAP
+% \citep{Fumagalli.2026}, LeverageSHAP \citep{Witter.2025}, PolySHAP \citep{Fumagalli.2026a}.
+\lipsum[2][1-5]
+
+\paragraph{What we did.}
+% TODO: the concrete deliverables -- three approximators implemented and submitted
+% upstream (PR numbers), three paper reproductions that re-render from committed results
+% without a GPU, one cross-method benchmark over a shared set of games. Add the shapiq
+% fixes found along the way if the group wants them in the report.
+\lipsum[3][1-4]
+
+\paragraph{How to read it.}
+% TODO. This paragraph earns its place: without it a reader will take the tables to
+% contradict each other.
+%   - A *reproduction* asks whether a paper's claim holds when its method is
+%     re-implemented in shapiq. It has to use that paper's own value function, or it tests
+%     nothing -- and the three papers do not share one.
+%   - The *benchmark* (Chapter~\ref{sec:benchmark}) asks how the methods compare with each
+%     other and with what shapiq already had. It has to use one value function for every
+%     method, which then belongs to no paper in particular.
+%   - So the absolute errors in Chapter~\ref{sec:benchmark} and in
+%     Chapters~\ref{sec:oddshap}--\ref{sec:polyshap} are different quantities and are not
+%     meant to be compared. Say so here rather than letting a reader find out from a table.
+\lipsum[4][1-6]
