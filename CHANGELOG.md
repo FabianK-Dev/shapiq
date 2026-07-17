@@ -1,5 +1,62 @@
 # Changelog
 
+## Unreleased
+
+### New Features
+
+- adds the `PolySHAPKAdd`, `PolySHAPPartial`, and `PolySHAPPrior` approximators in `shapiq.approximator.regression.polyshap` for Shapley value estimation via interaction-informed polynomial regression (PolySHAP, [Fumagalli et al., ICLR 2026](https://arxiv.org/abs/2601.18608)). PolySHAP generalizes `KernelSHAP` by fitting a *k*-additive polynomial surrogate of the game before reading off the Shapley values: `PolySHAPKAdd` uses the full *k*-additive interaction frontier up to a chosen `max_order` (with `max_order=1` recovering `KernelSHAP`), `PolySHAPPartial` a budget-controlled partial frontier (`n_explanation_terms`), and `PolySHAPPrior` a user-supplied set of prior interaction terms (`q_prior`). All three are registered as Shapley-value (`SV`) approximators.
+
+## v1.6.0 (2026-07-06)
+
+### Highlights of new Features
+
+- adds the `OddSHAP` approximator in `shapiq.approximator.regression` for fast first-order Shapley value estimation via odd-only Fourier regression (Fumagalli et al., 2026) [#522](https://github.com/mmschlk/shapiq/pull/522)
+- adds the `ShaplEIG` approximator in `shapiq.approximator.shapleig` for Shapley value estimation via Bayesian experimental design (Rundel et al., 2026) [#548](https://github.com/mmschlk/shapiq/pull/548)
+
+### Introducing OddSHAP [#522](https://github.com/mmschlk/shapiq/pull/522), [Preprint](https://arxiv.org/abs/2602.01399)
+
+Adds [`OddSHAP`](src/shapiq/approximator/regression/oddshap.py), a first-order Shapley value estimator that exploits the *odd* structure of the Shapley value (Fumagalli et al., 2026, "An Odd Estimator for Shapley Values"). It combines **paired sampling**, **sparse odd-interaction screening** via a surrogate tree model whose exact Fourier (Walsh) coefficients are extracted, and a **constrained odd Fourier regression** that enforces the efficiency axiom exactly. The surrogate defaults to LightGBM (the paper's configuration) and transparently falls back to a scikit-learn `DecisionTreeRegressor` when LightGBM is unavailable. It is exported as `shapiq.OddSHAP` and restricted to `index="SV"`, `max_order=1`.
+
+> Note: unlike Algorithm 1 of the paper, which falls back to TreeSHAP at low budgets, this implementation never silently downgrades to another estimator — below the minimum budget of `min(interaction_factor, 2**n)` it raises `ValueError` instead.
+
+### Introducing ShaplEIG [#548](https://github.com/mmschlk/shapiq/pull/548), [Preprint](https://arxiv.org/abs/2606.02247)
+
+Adds [`ShaplEIG`](src/shapiq/approximator/shapleig/shapleig.py), a **Bayesian experimental design** approximator for Shapley values (Rundel et al., 2026, "ShaplEIG: Bayesian Experimental Design for Shapley Value Estimation"). A Gaussian process surrogate with a weighted Hamming product kernel is fit on the queried coalition values, and the next coalition to evaluate is selected by maximizing the closed-form **expected information gain (EIG)** about the Shapley values. The Shapley structure is handled through elementary-symmetric-polynomial identities, so the full `2^n` coalition space is never enumerated and each iteration costs only polynomial time in `n`. The returned `InteractionValues` hold the posterior-mean Shapley value estimates; `approximate_with_variance` additionally returns their marginal posterior variances. It is exported as `shapiq.ShaplEIG`.
+
+ShaplEIG requires the new optional `shapleig` dependency group (`pip install shapiq[shapleig]` — `torch`, `gpytorch`, `botorch`, `linear_operator`); these optional dependencies are imported lazily in the constructor.
+
+### shapiq Benchmark [#521](https://github.com/mmschlk/shapiq/pull/521)
+
+Adds the `shapiq_benchmark` package, a framework to configure and run approximation benchmarks from either string tags or objects. It ships benchmark types for local XAI, image, TabPFN, path-dependent, and interventional games, a set of approximation-quality metrics, and Optuna-based hyperparameter optimization scripts with pre-computed best-parameter configs.
+
+The package installs next to `shapiq` (like `shapiq_games`) and imports on a plain `pip install shapiq`. Its model backends are optional and imported lazily; install them with `pip install shapiq[benchmark]` (`optuna`, `tabpfn`, `lightgbm`, `xgboost`) to build the corresponding models or run the hyperparameter optimization.
+
+### Documentation
+
+- includes the nearest-neighbor explainers (`KNNExplainer`, `WeightedKNNExplainer`, `ThresholdNNExplainer`) in the API documentation and the `shapiq.explainer` package exports [#558](https://github.com/mmschlk/shapiq/pull/558)
+
+### Maintenance
+
+- bumps `actions/checkout` from 6 to 7 [#555](https://github.com/mmschlk/shapiq/pull/555)
+
+## v1.5.2 (2026-06-12)
+
+### Highlights of new Features
+
+- Added `'baseline'` imputer support (`BaselineImputer`) to the `shapiq_games` `LocalExplanation` benchmark games.
+- Added `ProxySHAP` and `ProxySPEX` as approximator options for the `TabularExplainer`, `TabPFNExplainer`, and `AgnosticExplainer` in `shapiq.explainer`. All three resolve approximators through the shared `setup_approximator` configuration, so `proxyshap` and `proxyspex` are selectable wherever that configuration is used.
+- Added support for linear surrogate models and HPO-informed proxies in `ProxySHAP` and `RegressionMSR`. The extraction route (linear coefficient read-out vs. exact tree read-out) is selected automatically from the proxy's base estimator type, and hyperparameter-search wrappers (scikit-learn's `GridSearchCV`, `RandomizedSearchCV`, `HalvingGridSearchCV`, or SMAC) are fitted and their `best_estimator_` read out, for both linear and tree proxies.
+- Made `ProxySPEX`'s `proxy_model` configurable: it now also accepts the string tags `"lightgbm"` (default), `"xgboost"`, and `"tree"`, as well as custom tree estimators and HPO wrappers. The default remains the HPO-informed LightGBM proxy.
+- `ProxySHAP`, `ProxySPEX`, and `RegressionMSR` no longer require LightGBM, XGBoost, or SMAC to be installed. When an optional backend is unavailable they warn and fall back to a scikit-learn `DecisionTreeRegressor`, so the proxy approximators always import and run.
+- Added log-space weight computation for the regression-based (`KernelSHAP`, `KernelSHAPIQ`, `RegressionFSII`, `RegressionFBII`, `kADDSHAP`) and Monte Carlo (`SHAPIQ`, `SVARMIQ`) approximators, supporting Shapley approximation for feature counts beyond 1000.
+
+
+### Bugfix
+
+- Fixes `InterventionalTreeExplainer` routing the explain point at float64 precision while tree thresholds and the reference data are float32. The explain point is now cast to float32 to match the model's evaluation.
+- Fixes `ProxySHAP` and `RegressionMSR` alignment of sampled coalitions between the approximator and its adjustment method (`random_state` now defaults to a fixed seed so both samplers reproduce identical coalitions).
+- Fixes `ProxySPEX` passing `initialize_dict=True` to its sampler, which was unnecessary since `ProxySPEX` does not return all possible interactions (now `False`).
+
 ## v1.5.1 (2026-05-30)
 
 ### Bugfix

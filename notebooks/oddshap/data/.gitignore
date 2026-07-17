@@ -1,0 +1,8 @@
+# Reproduction results.
+#
+# The CSVs ARE committed on purpose: they are the record of the runs that produced every figure
+# and table in the notebooks, so the notebooks re-render offline (no GPU, no re-run) and a
+# reviewer can check the numbers. Everything else here is intermediate output and stays ignored.
+*
+!.gitignore
+!*.csv

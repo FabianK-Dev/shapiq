@@ -11,15 +11,43 @@ from .montecarlo import SHAPIQ, SVARM, SVARMIQ, UnbiasedKernelSHAP
 from .permutation.sii import PermutationSamplingSII
 from .permutation.stii import PermutationSamplingSTII
 from .permutation.sv import PermutationSamplingSV
+from .proxy import ProxySHAP, ProxySPEX, RegressionMSR
 from .regression import (
     InconsistentKernelSHAPIQ,
     KernelSHAP,
     KernelSHAPIQ,
     LeverageSHAP,
+    OddSHAP,
+    PolySHAPKAdd,
+    PolySHAPPartial,
+    PolySHAPPrior,
     RegressionFBII,
     RegressionFSII,
     kADDSHAP,
 )
+
+try:
+    from .shapleig import ShaplEIG
+except ImportError as _e:
+
+    class ShaplEIG(Approximator):
+        """Placeholder raised when the optional ``shapleig`` extra is not installed."""
+
+        _import_error = _e
+
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            """Raise an informative ImportError pointing to the missing extra."""
+            raise self._import_error
+
+        def approximate(self, *_args: object, **_kwargs: object) -> object:
+            """Unreachable, since ``__init__`` always raises.
+
+            It exists so the placeholder is concrete: an abstract subclass would fail
+            instantiation with ``TypeError: Can't instantiate abstract class`` before
+            ``__init__`` runs, hiding the import error that explains what to install.
+            """
+            raise self._import_error
+
 
 try:
     from .sparse import SPEX
@@ -32,43 +60,16 @@ except ImportError as _e:
 
         def __init__(self, *_args: object, **_kwargs: object) -> None:
             """Raise an informative ImportError pointing to the missing extra."""
-            msg = "SPEX requires the 'sparse' extra: pip install shapiq[sparse]"
-            raise ImportError(msg) from self._import_error
+            raise self._import_error
 
+        def approximate(self, *_args: object, **_kwargs: object) -> object:
+            """Unreachable, since ``__init__`` always raises.
 
-try:
-    from .proxy import ProxySHAP, ProxySPEX, RegressionMSR
-except ImportError as _e:
-
-    class ProxySHAP(Approximator):
-        """Placeholder raised when the optional ``proxy`` extra is not installed."""
-
-        _import_error = _e
-
-        def __init__(self, *_args: object, **_kwargs: object) -> None:
-            """Raise an informative ImportError pointing to the missing extra."""
-            msg = "ProxySHAP requires the 'proxy' extra: pip install shapiq[proxy]"
-            raise ImportError(msg) from self._import_error
-
-    class ProxySPEX(Approximator):
-        """Placeholder raised when the optional ``proxy`` extra is not installed."""
-
-        _import_error = _e
-
-        def __init__(self, *_args: object, **_kwargs: object) -> None:
-            """Raise an informative ImportError pointing to the missing extra."""
-            msg = "ProxySPEX requires the 'proxy' extra: pip install shapiq[proxy]"
-            raise ImportError(msg) from self._import_error
-
-    class RegressionMSR(Approximator):
-        """Placeholder raised when the optional ``proxy`` extra is not installed."""
-
-        _import_error = _e
-
-        def __init__(self, *_args: object, **_kwargs: object) -> None:
-            """Raise an informative ImportError pointing to the missing extra."""
-            msg = "RegressionMSR requires the 'proxy' extra: pip install shapiq[proxy]"
-            raise ImportError(msg) from self._import_error
+            It exists so the placeholder is concrete: an abstract subclass would fail
+            instantiation with ``TypeError: Can't instantiate abstract class`` before
+            ``__init__`` runs, hiding the import error that explains what to install.
+            """
+            raise self._import_error
 
 
 # contains all SV approximators
@@ -84,6 +85,11 @@ SV_APPROXIMATORS: list[Approximator.__class__] = [
     SPEX,
     RegressionMSR,
     ProxySPEX,
+    OddSHAP,
+    ShaplEIG,
+    PolySHAPKAdd,
+    PolySHAPPartial,
+    PolySHAPPrior,
 ]
 
 # contains all SI approximators
@@ -155,7 +161,9 @@ __all__ = [
     "InconsistentKernelSHAPIQ",
     "ProxySPEX",
     "ProxySHAP",
+    "OddSHAP",
     "RegressionMSR",
+    "ShaplEIG",
     "SHAPIQ",
     "SVARM",
     "SVARMIQ",
@@ -168,4 +176,7 @@ __all__ = [
     "STII_APPROXIMATORS",
     "FSII_APPROXIMATORS",
     "FBII_APPROXIMATORS",
+    "PolySHAPKAdd",
+    "PolySHAPPrior",
+    "PolySHAPPartial",
 ]
