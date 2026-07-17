@@ -490,7 +490,10 @@ class PlotStyle:
     """Base strategy for plot styling. Defaults to generic visuals."""
 
     figsize: tuple[float, float] = (8, 5)
-    use_medians: bool = False
+    # Median + IQR, not mean +/- std: the error metrics are non-negative and heavy-tailed, so
+    # `mean - std` routinely lands below zero, which cannot be drawn on a log axis and forces a
+    # symlog one with a meaningless negative half.
+    use_medians: bool = True
 
     def get_line_kwargs(self, method_name: str, index: int) -> dict[str, Any]:
         """Return styling attributes for the method's line."""
@@ -505,7 +508,7 @@ class PlotStyle:
     ) -> None:
         """Decorate the metric axes."""
         if is_lower_better:
-            ax.set_yscale("symlog", linthresh=1e-12)
+            ax.set_yscale("log")
         ax.set_xlabel("Budget (log scale)")
         ax.set_ylabel(f"{metric}{' (log scale)' if is_lower_better else ''}")
         ax.set_title(f"{metric} vs budget — {game_name}")
