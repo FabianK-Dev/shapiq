@@ -551,7 +551,10 @@ class PlotStyle:
         ax.set_ylabel(f"{metric}{' (log scale)' if is_lower_better else ''}")
         ax.set_title(f"{metric} vs budget — {game_name}")
         ax.grid(True, which="both", alpha=0.3)
-        ax.legend(fontsize=8, loc="best")
+        # The default handle is about two characters wide and the marker sits in its
+        # middle, which leaves too little line for a dash pattern to be visible. The
+        # pattern is half of how a series is identified, so give the handle room.
+        ax.legend(fontsize=8, loc="best", handlelength=4.0, handletextpad=0.8)
 
     def format_runtime_axes(self, ax: Any, game_name: str, game_n: int) -> None:
         """Decorate the runtime axes."""
@@ -559,7 +562,10 @@ class PlotStyle:
         ax.set_ylabel("Runtime (s, log scale)")
         ax.set_title(f"Runtime vs budget — {game_name}")
         ax.grid(True, which="both", alpha=0.3)
-        ax.legend(fontsize=8, loc="best")
+        # The default handle is about two characters wide and the marker sits in its
+        # middle, which leaves too little line for a dash pattern to be visible. The
+        # pattern is half of how a series is identified, so give the handle room.
+        ax.legend(fontsize=8, loc="best", handlelength=4.0, handletextpad=0.8)
 
 
 class MuscoWitterStyle(PlotStyle):
@@ -615,7 +621,7 @@ class MuscoWitterStyle(PlotStyle):
         # Paper aesthetic specifics
         ax.tick_params(direction="in", which="both")
         ax.grid(True, which="both", alpha=0.1)
-        ax.legend(fontsize=8, loc="best", framealpha=0.9)
+        ax.legend(fontsize=8, loc="best", framealpha=0.9, handlelength=4.0, handletextpad=0.8)
 
     def format_runtime_axes(self, ax: Any, game_name: str, game_n: int) -> None:
         base_name = game_name.split("(")[0].strip()
@@ -625,7 +631,7 @@ class MuscoWitterStyle(PlotStyle):
 
         ax.tick_params(direction="in", which="both")
         ax.grid(True, which="both", alpha=0.1)
-        ax.legend(fontsize=8, loc="best", framealpha=0.9)
+        ax.legend(fontsize=8, loc="best", framealpha=0.9, handlelength=4.0, handletextpad=0.8)
 
 
 # The global registry. To add a new style, subclass PlotStyle and add it here.
