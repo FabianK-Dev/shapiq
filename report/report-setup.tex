@@ -88,12 +88,15 @@
 % Every reproduction opens with one of these, so the reader sees what was run before
 % reading any number. The three papers do not share a value function, so a configuration
 % read after the results is a configuration read too late.
-% tabularx has to scan its whole body, so it cannot be split across this environment's
-% begin and end. A p-column gives the same wrapping without that restriction.
-\newenvironment{configtable}[1]{%
+% Takes a short caption and a long one, like \caption[short]{long}: the long one carries the
+% provenance, which belongs under the table, but a list of tables wants the short one.
+%
+% tabularx has to scan its whole body, so it cannot be split across this environment's begin
+% and end. A p-column gives the same wrapping without that restriction.
+\newenvironment{configtable}[2]{%
     \begin{table}[H]
     \centering
-    \caption{#1}
+    \caption[#1]{#2}
     \begin{tabular}{@{}l p{0.72\textwidth}@{}}
     \toprule
 }{%

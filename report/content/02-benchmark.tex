@@ -1,85 +1,128 @@
 % ==================================================
 % 2. Cross-method benchmark
+%
+% Every number here is computed from
+%   benchmark/results/lmu_full_sweep_20260717/results.csv
+% whose README records the command, the code revision and the machine.
+% Task packet: plan/task-packets/02-benchmark.md
 % ==================================================
 \chapter{Cross-Method Benchmark}
 \label{sec:benchmark}
 
-% The one place in the report where all three approximators and the existing shapiq
-% methods are measured on the same footing. Everything here comes from one run:
-%   benchmark/results/lmu_full_sweep_20260717/
-% whose README records the exact command, the code revision and the machine.
-
 \section{Setup}
 \label{sec:benchmark:setup}
 
-\begin{configtable}{Benchmark configuration. Provenance:
+\begin{configtable}{Benchmark configuration}{Benchmark configuration. Provenance:
     \texttt{benchmark/results/lmu\_full\_sweep\_20260717/README.md}.}
-    Games & TODO: 11 --- SOUM($n$=6,8,10) and the ML games IRIS(4), California(8),
-        Diabetes(10), Adult(12), Correlated(60), Independent(60), NHANES(79),
-        Communities(101). The ML grid follows Musco \& Witter. \\
-    Value function & TODO: features masked against a single baseline row (the training
-        mean); \texttt{XGBRegressor}, 100 trees, depth 4. \emph{Not} any paper's value
-        function --- see Section~\ref{sec:introduction:two-questions}. \\
-    Ground truth & TODO: exact enumeration for $n \le 10$; interventional TreeSHAP
-        against the same baseline row above it. \\
-    Budgets & TODO: $m = c \cdot n$ for $c \in \{1,2,3,5,8,12,20,30,50,75,110,160\}$. \\
-    Repeats & TODO: 10 held-out predictions per game, model fixed. Median and IQR are
-        over those predictions. \\
-    Methods & TODO: every approximator registered in
-        \texttt{shapiq.approximator.SV\_APPROXIMATORS}. \\
-    Run & TODO: LMU CIP cluster, one job per prediction. \\
+    Games & 11 --- SOUM($n$=6,8,10) and the ML games IRIS(4), California(8), Diabetes(10),
+        Adult(12), Correlated(60), Independent(60), NHANES(79), Communities(101). The ML
+        grid follows Musco \& Witter. \\
+    Value function & Features masked against a single baseline row (the training mean);
+        \texttt{XGBRegressor}, 100 trees, depth 4. \emph{Not} any paper's value function
+        --- see Chapter~\ref{sec:introduction}. \\
+    Ground truth & Exact enumeration for $n \le 10$; interventional TreeSHAP against the
+        same baseline row above it. \\
+    Budgets & $m = c \cdot n$ for $c \in \{1,2,3,5,8,12,20,30,50,75,110,160\}$. \\
+    Repeats & 10 held-out predictions per game, model fixed. Median and IQR are over
+        those predictions. \\
+    Methods & Every approximator registered in
+        \texttt{shapiq.approximator.SV\_APPROXIMATORS} (15 registered, 14 ran). \\
+    Scale & 19{,}800 cells, 143{,}980 metric rows, run on the LMU CIP cluster. \\
 \end{configtable}
 
-% TODO: one paragraph on why budgets are multiples of $n$ and not fractions of $2^n$:
-% a fraction of the coalition space is not a runnable budget at $n=60$ (5\% is 5.8e16
-% evaluations), and at 100\% every method is exact, so those ranks are ties rather than
-% a comparison. Multiples of $n$ are the convention the papers use and apply to every game.
-\lipsum[5][1-4]
+Two choices in that table shape everything that follows. The first is that budgets are multiples
+of the number of players rather than fractions of the coalition space. A fraction of $2^n$ stops
+being a runnable budget once $n$ grows --- on Independent($n$=60) even five percent of the space is
+$5.8 \times 10^{16}$ evaluations --- and at the other end a budget equal to $2^n$ makes every
+method exact, so ranks there record ties rather than a comparison. Multiples of $n$ are the
+convention the approximator papers use, they apply to every game in the grid, and they place the
+large games in the under-determined regime where the methods actually differ.
+
+The second is that a repeat explains one held-out prediction of one fixed model. Had each repeat
+retrained the model, the spread across repeats would have mixed estimator noise with model noise
+and could have been read as neither: a different tree has different Shapley values, so the target
+would move with the repeat. Fixing the model makes the band the spread across predictions, which
+is what the approximator papers report and what a reader assumes an error band to be.
 
 \section{Results and Discussion}
 \label{sec:benchmark:results}
 
-% TODO: figures. Use plots_paper_subset/ (8 curves: the three approximators plus the
-% baselines the OddSHAP paper compares against) rather than plots/ (15 curves) --- the
-% full set belongs in an appendix if anywhere.
-%
-% \begin{figure}[H]
-%     \centering
-%     \includegraphics[width=\textwidth]{figures/MSE_Communities_n101.png}
-%     \caption{MSE against budget on Communities ($n=101$). Median over ten predictions,
-%         band is the interquartile range. Solid: the approximators added in this project.
-%         Dashed: baselines.}
-%     \label{fig:benchmark:communities}
-% \end{figure}
+Averaged over all eleven games, \leverageshap{} takes the best mean rank at $3.24$, just ahead of
+\oddshap{} at $3.31$, with \polyshap{} at $4.50$, OptimizedKernelSHAP at $4.69$ and RegressionMSR
+at $5.46$. Reading that as a verdict would be a mistake, and the same data says why: over those
+cells \oddshap{} wins outright $652$ times against \leverageshap{}'s $168$. A method that comes
+first four times as often cannot also be the one that is, on average, slightly worse --- unless the
+average is carried by cells in which coming first means very little.
 
-% TODO: the rank table over all comparison cells.
+That is what is happening. Splitting the games by dimension inverts the ordering. On the seven
+small games ($n \le 12$, 840 comparison cells) \leverageshap{} leads at $3.55$, \polyshap{} follows
+at $3.68$, and \oddshap{} is third at $4.51$. On the four large games ($n \ge 60$, 480 cells)
+\oddshap{} leads at $1.34$, \leverageshap{} is second at $2.69$, and the best baseline,
+OptimizedKernelSHAP, is far behind at $4.58$. The aggregate is not a compromise between the two
+regimes; it is dominated by the first, which contributes almost twice as many cells.
 
-\lipsum[6][1-5]
+The inversion is not noise but saturation. Among the small-game results $24.0\%$ are already exact
+to machine precision, taking MSE below $10^{-10}$ as the threshold; among the large-game results
+only $1.0\%$ are. Figure~\ref{fig:benchmark:soum} shows what that looks like: on SOUM($n$=10) every
+method collapses to the numerical floor as the budget approaches $2^{10}$, and what happens to the
+left of that collapse decides a rank that the collapse then erases. Where a quarter of the results
+are exact, a rank is a tie-break rather than a measurement. The large games, where almost nothing
+is exact, carry the comparison.
 
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{figures/bench-communities-n101.png}
+    \caption[MSE against budget on Communities ($n=101$)]{MSE against budget on Communities
+        ($n=101$), the largest game in the grid. Median over the ten explained predictions; the
+        band is the interquartile range across them. Solid curves are the approximators added in
+        this project, dashed are baselines. \oddshap{} separates from the field at roughly
+        $m = 500 \approx 5d$ and ends about an order of magnitude below the runner-up.}
+    \label{fig:benchmark:communities}
+\end{figure}
 
-% TODO. This is the deliverable's "where do the new methods win, where do they lose, and
-% why --- based on what the papers predict". Points worth making, each backed by the CSV:
-%
-%   - Where each method wins, as a function of budget rather than averaged over it. An
-%     average rank over all budgets hides that the ordering changes with $m$.
-%   - Methods that decline a budget below their minimum (OddSHAP, SPEX, ProxySPEX) are
-%     scored only where they ran, so their average rank is not comparable with a method
-%     scored everywhere. Say so wherever an average rank appears.
-%   - The small games saturate: at a budget approaching $2^n$ every method is near-exact
-%     and the ranking is tie-breaking. The large games carry the comparison.
-%   - Read against what the papers predict, not just as a leaderboard.
-\lipsum[7][1-6]
+On the large games the advantage does not merely exist, it switches on at a predictable budget.
+Ranking \oddshap{} within each budget separately gives $3.40$ at $m = d$, where plain stratified
+sampling beats it; $1.35$ at $2d$; $1.30$ at $5d$; and then $1.00$, $1.00$, $1.02$, $1.00$, $1.07$,
+$1.00$ and $1.05$ at $12d$ through $160d$. From twelve times the dimension onward it is first in
+essentially every cell. The estimator's interaction factor is $\eta = 10$, so that threshold is
+$m > \eta d$, which is the condition \citet{Fumagalli.2026} attaches to its own claim. The
+runner-up at those budgets is always \leverageshap{}, and its rank drifts from $2.05$ at $12d$ to
+$2.65$ at $160d$: the gap widens with budget instead of closing, which is what one expects if the
+two methods differ in what they can represent rather than in how quickly they converge.
+
+Both halves of this agree with what the papers predict, and it is worth being exact about what the
+agreement is worth. \citet{Fumagalli.2026} reports that on its low-dimensional value functions
+\oddshap{} performs like RegressionMSR, the strongest budget-flexible baseline, and that on its
+moderate- to high-dimensional ones it clearly outperforms all of them once the budget suffices. We
+observe the same shape: no advantage at low dimension, a decisive one at high dimension, appearing
+at the stated threshold. This is a cross-check rather than a reproduction. The value function here
+masks against a single baseline row and trains a regressor, whereas the paper trains classifiers
+and defines its tabular value function by interventional perturbation over fifty background
+instances. That the claim survives a change of value function is a stronger statement than
+reproducing it under the paper's own conditions --- but it is also a different statement, and the
+MSE magnitudes in this chapter cannot be compared with those in Chapter~\ref{sec:oddshap}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{figures/bench-soum-n10.png}
+    \caption[MSE against budget on SOUM ($n=10$)]{MSE against budget on SOUM ($n=10$), a small
+        game. Every method falls to the numerical floor as the budget approaches full enumeration
+        ($2^{10} = 1024$); $24\%$ of all small-game results are exact in this sense. Ranks in that
+        region are tie-breaking rather than comparison, which is why the aggregate over all eleven
+        games should not be read as a verdict.}
+    \label{fig:benchmark:soum}
+\end{figure}
 
 \paragraph{Threats to validity.}
-
-% TODO. Better to state these than to have them asked. At least:
-%   - The value function is not any paper's, so this benchmark tests the methods against
-%     each other, not the papers' claims.
-%   - Ten predictions per game: the quartiles are a coarse envelope, not a confidence
-%     interval.
-%   - FourierSHAP and the fixed-budget FFD variants are in the OddSHAP paper's comparison
-%     but not in shapiq, so this is the paper's baseline set intersected with what is
-%     available.
-%   - ShaplEIG is registered but needs an optional extra that was not installed, so it is
-%     skipped everywhere.
-\lipsum[8][1-4]
+The value function is not any paper's, so this chapter compares the methods with each other and
+does not test any paper's claim; that is what Chapters~\ref{sec:oddshap}--\ref{sec:polyshap} are
+for. Coverage is uneven, and average ranks across methods that ran in different numbers of cells
+are not directly comparable, because a method that declines a budget is scored only where it ran.
+\oddshap{} declines 50 cells, all at $m = d$ or $2d$ on the four smallest games, where the budget
+falls below its minimum of $\eta = 10$ evaluations; it declines none on the large games, where it
+ran in all 480. SPEX declines 680 cells and ProxySPEX 10. ShaplEIG is registered but needs an
+optional extra that was not installed, so it is skipped in all 1{,}320 of its cells and appears in
+no figure. Ten predictions per game make the quartiles a coarse envelope rather than a confidence
+interval. Finally, FourierSHAP and the fixed-budget FFD variants belong to
+\citet{Fumagalli.2026}'s own comparison but are not implemented in \shapiq{}, so the baselines
+here are that paper's set intersected with what was available, not the set in full.

@@ -72,7 +72,7 @@ capped at $\lceil m/\eta \rceil$ rather than enumerated.
 % of Chapter~\ref{sec:benchmark}, and a reader who assumes otherwise misreads every number
 % below. The entries are taken from the paper, Section 5.
 
-\begin{configtable}{Configuration of the \oddshap{} reproduction, following
+\begin{configtable}{\oddshap{} reproduction configuration}{Configuration of the \oddshap{} reproduction, following
     \citet{Fumagalli.2026}. Provenance: \texttt{notebooks/oddshap/README.md}.}
     Value functions & 8 --- tabular: Cancer ($d$=30), Estate ($d$=15), CG60 ($d$=60),
         IL60 ($d$=60), NHANES ($d$=79), Crime ($d$=101); deep learning: ViT-16 ($d$=16),
@@ -124,7 +124,7 @@ track the published ones over three orders of magnitude
 non-monotonicity: adding odd interactions helps up to a point and then hurts
 (Figure~\ref{fig:oddshap:fig4}).
 
-\begin{figure}[H]
+\begin{figure}[tbp]
     \centering
     \includegraphics[width=0.86\textwidth]{figures/oddshap-rank-table.png}
     \caption[Average rank across the eight value functions]{%
@@ -139,7 +139,7 @@ non-monotonicity: adding odd interactions helps up to a point and then hurts
     \label{fig:oddshap:rank}
 \end{figure}
 
-\begin{figure}[H]
+\begin{figure}[tbp]
     \centering
     \includegraphics[width=\textwidth]{figures/oddshap-fig2-first.png}
     \caption[MSE against budget, ours against the paper's]{%
@@ -159,7 +159,7 @@ non-monotonicity: adding odd interactions helps up to a point and then hurts
     \label{fig:oddshap:fig2}
 \end{figure}
 
-\begin{figure}[H]
+\begin{figure}[tbp]
     \centering
     \includegraphics[width=\textwidth]{figures/oddshap-fig4-eta.png}
     \caption[The interaction ablation]{%
@@ -199,10 +199,10 @@ its entire effect is confined to the low-budget regime in which PR~\#522 refuses
 
 \paragraph{Honest gaps.}
 The two deep-learning value functions are budget-truncated: ViT-16 reaches a budget of 1{,}895
-and DistilBERT 1{,}591, rather than the paper's sweep to $\min(2^d, 20\,000)$, because the
-rented GPU time ran out before the high-budget points finished. Both are low-dimensional
-($d = 16$, $d = 14$) --- the regime in which the paper itself reports convergence between the
-methods --- and the $\eta$ ablation is complete for both. The high-budget tail for these two is
-nevertheless not confirmed here. Separately, the reference curves in
+and DistilBERT 1{,}591, rather than the paper's sweep to $\min(2^d, 20\,000)$. Both are
+low-dimensional ($d = 16$, $d = 14$) --- the regime in which the paper itself reports
+convergence between the methods --- and the $\eta$ ablation is complete for both. The
+high-budget tail for these two is nevertheless not confirmed here. Separately, the reference
+curves in
 \texttt{paper\_reference/} are digitised from the published figures rather than taken from
 author-provided numbers, and are accurate only to the resolution of that source.
