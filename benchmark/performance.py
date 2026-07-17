@@ -498,20 +498,28 @@ def write_csv(results: list[CellResult], path: Path) -> None:
 # -----------------------------------------------------------------------------
 
 
-# Okabe-Ito: distinguishable under the common colour-vision deficiencies. Deliberately no
-# red/green pairing carries meaning on its own; marker and dash pattern repeat the encoding.
-OKABE_ITO: list[str] = [
-    "#0072B2",  # blue
-    "#E69F00",  # orange
-    "#009E73",  # bluish green
-    "#CC79A7",  # reddish purple
-    "#56B4E9",  # sky blue
-    "#D55E00",  # vermillion
-    "#F0E442",  # yellow
-    "#000000",  # black
+# Colour-blind-safe and readable as a thin line on white. Drawn from Okabe-Ito and Paul Tol's
+# muted set, keeping only entries that clear a 3:1 contrast ratio against the background: raw
+# Okabe-Ito is built for fills, and three of its eight (yellow at 1.3:1, orange and sky blue at
+# 2.3:1) all but vanish as a 1.5pt stroke. Hue never carries meaning alone -- marker and dash
+# repeat the encoding -- so near hues here are disambiguated by shape.
+PALETTE: list[str] = [
+    "#0072B2",  # blue          5.2:1
+    "#D55E00",  # vermillion    3.9:1
+    "#009E73",  # bluish green  3.4:1
+    "#CC79A7",  # orchid        3.1:1
+    "#332288",  # indigo       12.2:1
+    "#999933",  # olive         3.0:1
+    "#882255",  # wine          8.7:1
+    "#000000",  # black        21.0:1
 ]
 _MARKERS: list[str] = ["o", "s", "^", "D", "v", "P", "X"]
-_DASHES: list[str] = ["-", "--", "-.", ":"]
+# Line style says which family a curve belongs to: solid for the approximators this project
+# contributed, dashed for the baselines. One dash pattern, one weight -- the style is a grouping,
+# not a per-series identifier, which is what colour and marker are for.
+GROUP_APPROXIMATORS: frozenset[str] = frozenset(
+    {"OddSHAP", "LeverageSHAP", "PolySHAP", "PolySHAPKAdd", "PolySHAPPartial", "PolySHAPPrior"}
+)
 
 
 class PlotStyle:
@@ -536,14 +544,20 @@ class PlotStyle:
         # combination repeats until well past the number of registered approximators. Marker
         # and dash therefore vary from the first series, which matters when a plot holds only
         # a handful of methods and every one of them would otherwise be a solid circle.
-        colour = OKABE_ITO[index % len(OKABE_ITO)]
-        marker = _MARKERS[index % len(_MARKERS)]
-        dashes = _DASHES[index % len(_DASHES)]
-        return {"color": colour, "linestyle": dashes, "marker": marker, "linewidth": 1.5}
+        ours = method_name in GROUP_APPROXIMATORS
+        return {
+            "color": PALETTE[index % len(PALETTE)],
+            "marker": _MARKERS[index % len(_MARKERS)],
+            "linestyle": "-" if ours else "--",
+            "linewidth": 1.7,
+            "markersize": 4.5,
+            "markeredgewidth": 0,
+            "zorder": 3 if ours else 2,
+        }
 
     def get_fill_alpha(self) -> float:
         """Opacity of the standard deviation/quartile bands."""
-        return 0.15
+        return 0.12
 
     def format_axes(
         self, ax: Any, game_name: str, game_n: int, metric: str, is_lower_better: bool
@@ -554,7 +568,9 @@ class PlotStyle:
         ax.set_xlabel("Budget (log scale)")
         ax.set_ylabel(f"{metric}{' (log scale)' if is_lower_better else ''}")
         ax.set_title(f"{metric} vs budget — {game_name}")
-        ax.grid(True, which="both", alpha=0.3)
+        ax.grid(True, which="major", alpha=0.25, linewidth=0.6)
+        for side in ("top", "right"):
+            ax.spines[side].set_visible(False)
         # The default handle is about two characters wide and the marker sits in its
         # middle, which leaves too little line for a dash pattern to be visible. The
         # pattern is half of how a series is identified, so give the handle room.
@@ -565,7 +581,9 @@ class PlotStyle:
         ax.set_xlabel("Budget (log scale)")
         ax.set_ylabel("Runtime (s, log scale)")
         ax.set_title(f"Runtime vs budget — {game_name}")
-        ax.grid(True, which="both", alpha=0.3)
+        ax.grid(True, which="major", alpha=0.25, linewidth=0.6)
+        for side in ("top", "right"):
+            ax.spines[side].set_visible(False)
         # The default handle is about two characters wide and the marker sits in its
         # middle, which leaves too little line for a dash pattern to be visible. The
         # pattern is half of how a series is identified, so give the handle room.
