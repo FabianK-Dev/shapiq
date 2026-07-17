@@ -53,7 +53,8 @@ from sklearn.model_selection import train_test_split
 
 from shapiq import ExactComputer
 from shapiq.datasets import load_adult_census, load_california_housing
-from shapiq.tree.explainer import TreeExplainer
+from shapiq.tree.explainer import TreeExplainer  # noqa: F401
+from shapiq.tree.interventional.explainer import InterventionalTreeExplainer
 from shapiq_games.datasets import (
     load_communities_and_crime,
     load_corrgroups60,
@@ -206,6 +207,7 @@ def make_ml_game(dataset_name: str, seed: int):
 
     game_fn.model = model
     game_fn.x_instance = x_instance
+    game_fn.baseline = bg_mean
 
     return game_fn
 
@@ -389,8 +391,18 @@ def run_sweep(
                         spec.n,
                     )
                 else:
-                    explainer = TreeExplainer(model=truth_game.model)
-                    iv_exact = explainer.explain(truth_game.x_instance, max_order=1)
+                    # The game masks features against a single baseline row, so its Shapley
+                    # values are the *interventional* TreeSHAP values w.r.t. that same row.
+                    # Path-dependent TreeSHAP explains a different value function and differs
+                    # from the game by ~30%, which would score every approximator against a
+                    # target it was never asked to approximate.
+                    explainer = InterventionalTreeExplainer(
+                        model=truth_game.model,
+                        data=truth_game.baseline.reshape(1, -1),
+                        max_order=1,
+                        index="SV",
+                    )
+                    iv_exact = explainer.explain_function(x=truth_game.x_instance)
                     truth_cache[key] = canonical_sv_vector(iv_exact, spec.n)
 
             ground_truth = truth_cache[key]
